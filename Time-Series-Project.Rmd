@@ -1,0 +1,248 @@
+---
+title: "DS6373 Time Series Project"
+author: "Paul Adams & Jeff Nguyen"
+date: "3/6/2020"
+output: 
+    html_document:
+      toc: TRUE
+---
+
+```{r soft infrastructure}
+library(pacman)
+p_load(tswge, dplyr)
+df <- read.csv('../ds6373_project/daily_prices_20_years.csv', header=T, sep=',', strip.white=T)
+head(df)
+```
+
+## Project Data
+
+Data from this project was gathered using an API connection to the AlphaVantage server where all symbols listed on the NASDAQ were used to gather trade price and volume on daily intervals spanning the previous 100 days. Because it is expensive to trade intradaily, we're only considering daily data. Additionally important to note, due to the upcoming presedential election and coronavirus, which we expect to significantly confound correlations between lags in the realizations due to the stress on the global supply chain and the wide scope of industries likely to be impacted, we're focusing on data spanning from May 30th, 2019 through October 18th, 2019 (100 data points).
+
+```{r Data Selection, echo=FALSE}
+
+files = list.files(path='../DatabaseProject/Stocks/NASDAQ_Daily', pattern='*.csv')
+#files = list.files(path='../LoopTest', pattern='*.csv')
+
+for(file in files){
+  actualFile <- paste0('../DatabaseProject/Stocks/NASDAQ_Daily/',file)
+  #actualFile <- paste0('../LoopTest/',file)
+  df <- read.csv(actualFile)
+  aicfive <- aic5.wge(df$low, type="bic") # bic because of its stinginess during variable selection
+
+  if((aicfive$`   p`[1] < 3 && aicfive$`   q`[1] == 0 && abs(aicfive$`       bic`) < 3) | (aicfive$`   p`[2] < 3 && aicfive$`   q`[2] == 0 && abs(aicfive$`       bic`) < 3) | (aicfive$`   p`[3] < 3 && aicfive$`   q`[3] == 0 && abs(aicfive$`       bic`) < 3)){
+    z <- data.frame(file, aicfive$`   p`, aicfive$`   q`, aicfive$`       bic`)
+    z
+    write.table(z, './z.csv', append=T)
+  }
+  
+  #Sys.sleep(0.5)
+}
+
+x = acf(df2$low)
+x$acf
+# to look directly at what was selected:
+df2 <- read.csv('../DatabaseProject/Stocks/NASDAQ_Daily/NASDAQ_Daily_AGND.csv', header=T)
+aic5.wge(df2$low, type="bic")
+plotts.sample.wge(df2$low, trunc = 75) # there is a significant peak at frequency 0.02
+
+
+df2 <- read.csv('../Call_Center_Metrics_for_the_Health_Service_System.csv', header=T)
+plotts.sample.wge(df2$Abandoned.Calls, trunc = 75)
+x = acf(df2$Abandoned.Calls)
+x$acf
+pacf(df2$Abandoned.Calls)
+
+
+plotts.sample.wge(df2$Average.Speed.of.Answer.in.Secs, trunc = 75)
+x = acf(df2$Average.Speed.of.Answer.in.Secs)
+x$acf
+pacf(df2$Average.Speed.of.Answer.in.Secs) # AR(1)
+
+# osciallatory pacfs and acfs indicate negative phis and thetas
+
+aic5.wge(df2$Average.Speed.of.Answer.in.Secs)
+aic5.wge(df2$Abandoned.Calls)
+```
+
+```{r echo=T}
+est.ar.wge(df2$Abandoned.Calls, type='mle', p=1)
+est.arma.wge()
+```
+
+
+```{r echo=T}
+fore.arma.wge(df2$Abandoned.Calls, phi=0.2721913, n.ahead=30, lastn=T)
+fore.aruma.wge(df2$Abandoned.Calls, phi=0.2721913, s=11, n.ahead=36, lastn=T)
+fore.arma.wge()
+
+# Model 1
+phis=c(0.2721913)
+thetas = 0
+
+trainingSize = 70
+horizon = 24
+ASEHolder_1 = numeric()
+
+for(i in 1:12)
+{
+
+  forecasts = fore.arma.wge(df2$Abandoned.Calls[i:(i + (trainingSize - 1))], phi=phis, theta=thetas, lastn=F, n.ahead=horizon, plot=F)
+
+  forecasts = fore.aruma.wge(df2$Abandoned.Calls[i:(i + (trainingSize - 1))], phi=phis, theta=thetas, s=11, lastn=F, n.ahead=horizon, plot=F)
+  ASE_1 = mean((df2$Abandoned.Calls[(trainingSize + i):(trainingSize + i + (horizon) - 1)] - forecasts$f)^2)
+  
+  
+  ASEHolder_1[i] = ASE_1
+  
+}
+
+WindowedASE_mod1 = mean(ASEHolder_1)
+
+mod1_ASEs <- data.frame(ASEHolder_1)
+mod1_windowase <- data.frame(WindowedASE_mod1)
+
+colnames(mod1_ASEs) <- "Average Square Error Scores: Model 1"
+colnames(mod1_windowase) <- "Windowed Average Square Error Score: Model 1"
+
+kable(mod1_ASEs)
+kable(mod1_windowase)
+
+par(mfrow=c(2,2))
+plot(df2$Abandoned.Calls,type = "l")
+lines(df2$Abandoned.Calls,col = "blue", type = "l")
+pacf(df2$Abandoned.Calls)
+acf(df2$Abandoned.Calls)
+parzen.wge(df2$Abandoned.Calls, trunc=45)
+```
+
+```{r Display Data, echo=T, warning=F, fig.width = 6, fig.asp = .84}
+#par(mfrow=c(4,1))
+par(mfrow=c(2,2))
+plot(df2$low,type = "l")
+lines(df2$low,col = "blue", type = "l")
+pacf(df2$low)
+acf(df2$low)
+parzen.wge(df2$low, trunc=45)
+```
+
+``` {r Model Estimation, echo=T, warning=F}
+est.arma.wge(df2$low)
+est.ar.wge(df2$low)
+
+
+fore.arma.wge(df2$low, phi=c(0.9256, -0.2137), theta=0, n.ahead=10, lastn=T, plot=T, limits=T)
+ # based on the 12.5 decibel at frequency 0.02:
+fore.aruma.wge(df2$low, phi=c(0.9256, -0.1137), s=12,  n.ahead=10, lastn=T, plot=T, limits=T)
+
+artrans.wge(df2$low, phi.tr=2, plottr=T)
+fore.aruma.wge(df2$low, phi=c(1.1256, -0.2137), s=12,  n.ahead=20, lastn=F)
+fore.aruma.wge(df2$low, phi=c(1.1256, -0.2137), s=12,  n.ahead=30)
+```
+
+## Because no stocks in the first model provided stationary results, we are taking the first difference of all stocks and then assessing to identify realizations that offer a white noise ARMA(0,0) model post-first difference. We will then consider these models for direct analysis prior to forecasting. Once the model is stationary, we can estimate the white noise variance as the sample variance of the differenced data. White noise variance 
+$\hat{\sigma}_a = sd(differenced model)^2$
+```{r Data Selection - Alternative for Differencing, echo=FALSE}
+
+files = list.files(path='../Time-Series-Stocks', pattern='*.csv')
+
+for(file in files){
+  actualFile <- paste0('../DatabaseProject/Stocks/NASDAQ_Daily/',file)
+
+  df <- read.csv(actualFile)
+  newdf <- artrans.wge(df, phi.tr=1)
+  aicfive <- aic5.wge(newdf$df.Low, type="bic") # bic because of its stinginess during variable selection
+
+  if((aicfive$`   p`[1] == 0 && aicfive$`   q`[1] == 0 && abs(aicfive$`       bic`) < 3) | (aicfive$`   p`[2] == 0 && aicfive$`   q`[2] == 0 && abs(aicfive$`       bic`) < 3) | (aicfive$`   p`[3] == 0 && aicfive$`   q`[3] == 0 && abs(aicfive$`       bic`) < 3)){
+    z <- data.frame(file, aicfive$`   p`, aicfive$`   q`, aicfive$`       bic`)
+    #z
+    write.table(z, './z.csv', append=T)
+  }
+  
+  Sys.sleep(0.5)
+}
+
+# to look directly at what was selected:
+df2 <- read.csv('../DatabaseProject/Stocks/NASDAQ_Daily/NASDAQ_Daily_BLCN.csv', header=T)
+aic5.wge(df2$low, type="bic")
+plotts.sample.wge(df2$low, trunc = 75) # there is a significant peak at frequency 0.02
+```
+
+
+```
+
+rv %>%
+  group_by(symbol) %>%
+  summarise_at(vars(symbol), funs(mean(., na.rm=TRUE)))
+
+rv %>%
+  group_by(symbol) %>%
+  summarise_at(vars(-symbol), funs(aic5.wge(rv$b, p=0, q=0, type="aic")))
+
+
+
+df$low_price
+df %>%
+  group_by(symbol) %>%
+  summarise_at(vars(-symbol), funs(aic5.wge(low_price, p=0, q=0, type="aic")))
+
+
+
+if(rv$symbol == rv$symbol[rv$symbol[1]]){
+  x = rv$b
+  print(x)
+}
+  
+  
+print(mean(rv$rr[rv$symbol = rv$symbol[rv$symbol[1]]])
+for(i in 1:length(unique(rv$symbol))){
+  if(rv$symbol==unique(rv$symbol)){
+    rv$
+    print(mean(rv$rr[rv$symbol = rv$symbol[rv$symbol[1]]])
+  }
+}
+
+if(df$symbol==unique(df$smymbol)[i]){
+  mean(df$low_price[i])
+}
+  
+for(df$symbol==uniqueSymbols[i]){
+  x = aic5.wge(df$symbol[i])
+
+}
+if(df$symbol=uniqueSymbols[i]){
+  
+}
+  
+)
+for(i in 1:length(uniqueSymbols)){
+  #print(as.character(df$symbol[i]))
+  while(df$symbol == uniqueSymbols[i]){
+     if(df$low_price[i]>2000.00){
+      print(unique(as.character(df$symbol[i])))
+       } 
+    }
+}
+
+
+
+
+
+for(i in 1:length(uniqueSymbols)){
+  #print(as.character(df$symbol[i]))
+  while(df$symbol == uniqueSymbols[i]){
+     if(df$low_price[i]>2000.00){
+      print(unique(as.character(df$symbol[i])))
+       } 
+    }
+}
+
+for(symbol in 1:nrow(df)){
+  aic5$symbol[symbol]
+  
+  #if(aic5$sybmol[symbol][1]==0 && aic5$symbol[symbol][2]==0){
+  if(aic5$sybmol[1,1]==0 && aic5$symbol[2,1]==0){ #if the top  AIC5 is white noise ARMA[0,0]
+    x = paste0(aic5$sybmol, sybmol, sep=',')
+    write.table(x, file="aic5 top stocks", row.names=F, col.names=F, append=T, sep=',')
+  }
+}
+```
