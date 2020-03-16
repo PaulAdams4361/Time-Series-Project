@@ -35,9 +35,40 @@ for(file in files){
   
   #Sys.sleep(0.5)
 }
+
+x = acf(df2$low)
+x$acf
+# to look directly at what was selected:
+df2 <- read.csv('../DatabaseProject/Stocks/NASDAQ_Daily/NASDAQ_Daily_AGND.csv', header=T)
+aic5.wge(df2$low, type="bic")
+plotts.sample.wge(df2$low, trunc = 75) # there is a significant peak at frequency 0.02
+
+
+df2 <- read.csv('../Call_Center_Metrics_for_the_Health_Service_System.csv', header=T)
+plotts.sample.wge(df2$Abandoned.Calls, trunc = 75)
+x = acf(df2$Abandoned.Calls)
+x$acf
+pacf(df2$Abandoned.Calls)
+
+
+plotts.sample.wge(df2$Average.Speed.of.Answer.in.Secs, trunc = 75)
+x = acf(df2$Average.Speed.of.Answer.in.Secs)
+x$acf
+pacf(df2$Average.Speed.of.Answer.in.Secs) # AR(1)
+
+# osciallatory pacfs and acfs indicate negative phis and thetas
+
+aic5.wge(df2$Average.Speed.of.Answer.in.Secs)
+aic5.wge(df2$Abandoned.Calls)
 ```
 
-```#{r ASEs, echo=T}
+```#{r echo=T}
+est.ar.wge(df2$Abandoned.Calls, type='mle', p=1)
+est.arma.wge()
+```
+
+
+```#{r echo=T}
 fore.arma.wge(df2$Abandoned.Calls, phi=0.2721913, n.ahead=30, lastn=T)
 fore.aruma.wge(df2$Abandoned.Calls, phi=0.2721913, s=11, n.ahead=36, lastn=T)
 fore.arma.wge()
@@ -101,7 +132,7 @@ fore.arma.wge(df2$low, phi=c(0.9256, -0.2137), theta=0, n.ahead=10, lastn=T, plo
  # based on the 12.5 decibel at frequency 0.02:
 fore.aruma.wge(df2$low, phi=c(0.9256, -0.1137), s=12,  n.ahead=10, lastn=T, plot=T, limits=T)
 
-artrans.wge(df2$low, phi.tr=2, plot=T)
+artrans.wge(df2$low, phi.tr=2, plottr=T)
 fore.aruma.wge(df2$low, phi=c(1.1256, -0.2137), s=12,  n.ahead=20, lastn=F)
 fore.aruma.wge(df2$low, phi=c(1.1256, -0.2137), s=12,  n.ahead=30)
 ```
@@ -163,26 +194,16 @@ where r.AIC = (
   and r1.AIC = r.AIC)")
 
 df_arg <- df_arg[order(df_arg$AIC),]
-# Not Useful: ACBI  AFMD  AGNCB  AKBA  BANF  BCML  BMRC  CCRC  DRADP  EXPCU  GLAC  NATR  PACQW  PTON  VICR
-# Very Useful: BOKFL  CZWI  FTSM  SHV  SLRC  TOUR  VRIG
-# Potentially Useful: CHCO  CVBF  FBNC  FCEL  FITBI GBCI  JFIN  OFIX  OXSQL  PEBO  PRVL  SKYS  TANNZ  
-data.frame(unique(df_arg$stock)) # c('','','','','','','','','','','','','','','','','','','','','','','','','','','','','','','','','','','')
 
-```
-
-
-```{r Model Development & Analysis, echo=T, warning=F}
+data.frame(unique(df_arg$stock)) # c('CPTAG','CRWS','EXPCU','ITRM','PACQW','PXS','SSPK','YGYIP')
 
 # to look directly at what was selected:
-df_CPTAG <- read.csv('../DatabaseProject/Stocks/NASDAQ_Daily/NASDAQ_Daily_VRIG.csv', header=T)
+df_CPTAG <- read.csv('../DatabaseProject/Stocks/NASDAQ_Daily/NASDAQ_Daily_CPTAG.csv', header=T)
 df_CPTAG <- data.frame(df_CPTAG$times, df_CPTAG$low)
 colnames(df_CPTAG) <- c("times", "low")
 plotts.sample.wge(df_CPTAG$low) # this is a weird one, but only extends beyond 95% limits in ACF roughly 5% of time so may be good.
 
-```
 
-
-```{r echo=T}
 #***********************************************************************************************************************
 #********************************************* START-CRWS **************************************************************
 #***********************************************************************************************************************
@@ -245,9 +266,8 @@ plotts.sample.wge(df2$low) # there is a significant peak at frequency 0.02; 1/0.
 est.ar.wge(df2$low, p=1)
 
 fore.aruma.wge(df2$low, phi=0.9310042, s=50, n.ahead=10, lastn=F)
-
-
 ```
+
 
 ```{r Finding Missing Values, Building the Time Scope, echo=T}
 library(pacman)
