@@ -1,0 +1,123 @@
+---
+title: "Stock-Selection-Analysis"
+author: "Paul Adams & Jeff Nguyen"
+date: "3/17/2020"
+output: html_document
+---
+
+# Purpose
+## This process provides a method to obtain stocks ideal for time series models such as AR, MA, ARMA, ARIMA, and Signal-Plus-Noiseide using the R package twsge.
+```{r setup, include=FALSE}
+library(pacman)
+p_load(tswge, dplyr, kableExtra, sqldf, ggplot2)
+```
+
+## Project Data Description
+
+In this project, we analyze 3,202 stock price and volume data time series traded on the NASDAQ exchange between May 30th and October 30th, 2019. This date range was selected for its distance from significant biological and political disruption to the markets, which can both introduce artificial seasonality and increased random variation into forecasts. Data was sourced as comma-separated values through API from AlphaVantage.
+
+Because of the time constraints involved with directly analyzing each stock, we developed a loop to process through each file, perform a brief assessment of the spectral density distribution to remove stocks with wandering behavior, defined by a peak at frequency zero. This was assessed by measuring if the first index of the Parzen Window is lower than any of the second through 17th indices. If not, the stock was discarded.
+
+The methodology helped find stocks with seasonal components. We consider stationary seasonality to be an indication of a healthy company with long-term potential indicated by predictable behavior representing a balanced business process lifecycle. From that, we concluded if a company's stock performs in this way and the realization is positive, then it is a good stock for modeling.
+
+Following the first-pass wandering analysis, all but 36 stocks remained, which we then analyzed directly using the parzen window's spectral density estimate, autocorrelation and partials autocorrelation plots and the realizations themselves. 
+
+Once we obtained our chosen one, we estimated a model to fit it.
+```{r cars}
+files = list.files(path='../Time-Series-Stocks', pattern='*.csv')
+
+for(file in files){
+  actualFile <- paste0('../Time-Series-Stocks/',file)
+  
+  df <- read.csv(actualFile, header=T, strip.white=T)
+
+  if(
+    plotts.sample.wge(df$low)$dbz[1] < plotts.sample.wge(df$low)$dbz[2]|
+    plotts.sample.wge(df$low)$dbz[1] < plotts.sample.wge(df$low)$dbz[3]|
+    plotts.sample.wge(df$low)$dbz[1] < plotts.sample.wge(df$low)$dbz[4]|
+    plotts.sample.wge(df$low)$dbz[1] < plotts.sample.wge(df$low)$dbz[5]|
+    plotts.sample.wge(df$low)$dbz[1] < plotts.sample.wge(df$low)$dbz[6]|
+    plotts.sample.wge(df$low)$dbz[1] < plotts.sample.wge(df$low)$dbz[7]|
+    plotts.sample.wge(df$low)$dbz[1] < plotts.sample.wge(df$low)$dbz[8]|
+    plotts.sample.wge(df$low)$dbz[1] < plotts.sample.wge(df$low)$dbz[9]|
+    plotts.sample.wge(df$low)$dbz[1] < plotts.sample.wge(df$low)$dbz[10]|
+    plotts.sample.wge(df$low)$dbz[1] < plotts.sample.wge(df$low)$dbz[11]|
+    plotts.sample.wge(df$low)$dbz[1] < plotts.sample.wge(df$low)$dbz[12]|
+    plotts.sample.wge(df$low)$dbz[1] < plotts.sample.wge(df$low)$dbz[13]|
+    plotts.sample.wge(df$low)$dbz[1] < plotts.sample.wge(df$low)$dbz[14]|
+    plotts.sample.wge(df$low)$dbz[1] < plotts.sample.wge(df$low)$dbz[15]|
+    plotts.sample.wge(df$low)$dbz[1] < plotts.sample.wge(df$low)$dbz[16]|
+    plotts.sample.wge(df$low)$dbz[1] < plotts.sample.wge(df$low)$dbz[17]
+    ){
+    
+    aicfive <- aic5.wge(df$low, p=0:15, q=0:15, type="aic")
+
+    if(aicfive$`       aic` < 0){
+      y <- data.frame(file, aicfive$`   p`, aicfive$`   q`, aicfive$`       aic`)
+      colnames(y) <- NULL
+      write.table(y, './models_aic_less_than_0.csv', append=T)
+    }
+  }
+#  Sys.sleep(0.15)
+}
+```
+
+# This method uses linear regression to identify a profitable signal-plus-noise model fit. Cochran-orcutt is needed after selection of stocks.
+```{r Signal Plus Noise, echo=T}
+files = list.files(path='../Time-Series-Stocks', pattern='*.csv')
+
+for(file in files){
+  actualFile <- paste0('../Time-Series-Stocks/',file)
+  
+  df <- read.csv(actualFile, header=T, strip.white=T)
+
+  # run linear regression to get the signal (average).
+  t = seq(1, nrow(df),1)
+  fit = lm(df$low~t)
+  
+  # get the frequency values from the spectral density in the Parzen Window (we want them to wander without season; just trend)
+  dbz <- plotts.sample.wge(df$low)[4] # plotting sample plots to see the stocks while they process
+
+  # if the linear coefficient (deterministic signal) for the price is positive and the price is between 5 and 50 (affordable):
+  if(fit$coefficients[2] > 0.04 && df$low[nrow(df)] > 5 && df$low[nrow(df)] < 50){
+    for(i in 1:(length(dbz$dbz)-1)){
+      # if the realization is wandering (based on spectral density):
+      if(dbz$dbz[i] > dbz$dbz[i+1]){
+        write.table(df$symbol, './models_aic_less_than_0.csv', append=T)
+      }
+    }
+  }
+}
+```
+
+## Including Plots
+
+You can also embed plots, for example:
+
+```{r pressure, echo=FALSE}
+oldFile <- read.csv('./NASDAQ_Daily_ACGL.csv', header=T, strip.white=F)
+plotts.sample.wge(oldFile$low, arlimits=T)
+
+par(mfrow=c(2,2))
+plot(oldFile$low,type = "l")
+lines(oldFile$low,col = "blue", type = "l")
+pacf(oldFile$low)
+acf(oldFile$low)
+parzen.wge(oldFile$low, trunc=45)
+
+newFile <- read.csv('../Time-Series-Stocks/NASDAQ_Daily_ACGL.csv', header=T, strip.white=F)
+plotts.sample.wge(newFile$low, arlimits=T)
+
+par(mfrow=c(2,2))
+plot(newFile$low,type = "l")
+lines(newFile$low,col = "blue", type = "l")
+pacf(newFile$low)
+acf(newFile$low)
+parzen.wge(newFile$low, trunc=45)
+
+
+
+
+```
+
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
