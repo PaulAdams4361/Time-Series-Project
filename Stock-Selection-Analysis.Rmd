@@ -9,7 +9,7 @@ output: html_document
 ## This process provides a method to obtain stocks ideal for time series models such as AR, MA, ARMA, ARIMA, and Signal-Plus-Noiseide using the R package twsge.
 ```{r setup, include=FALSE}
 library(pacman)
-p_load(tswge, dplyr, kableExtra, sqldf, ggplot2)
+p_load(tswge, dplyr, kableExtra, sqldf, ggplot2, orcutt)
 ```
 
 ## Project Data Description
@@ -88,6 +88,7 @@ for(file in files){
     }
   }
 }
+
 ```
 
 ## Including Plots
@@ -95,29 +96,45 @@ for(file in files){
 You can also embed plots, for example:
 
 ```{r pressure, echo=FALSE}
-oldFile <- read.csv('./NASDAQ_Daily_ACGL.csv', header=T, strip.white=F)
-plotts.sample.wge(oldFile$low, arlimits=T)
+df <- read.csv('./NASDAQ_Daily_ACGL.csv', header=T, strip.white=F)
+plotts.sample.wge(df$low, arlimits=T)
 
-par(mfrow=c(2,2))
-plot(oldFile$low,type = "l")
-lines(oldFile$low,col = "blue", type = "l")
-pacf(oldFile$low)
-acf(oldFile$low)
-parzen.wge(oldFile$low, trunc=45)
+t = seq(1, nrow(df),1)
+fit = lm(df$low~t) # there is deterministic trend; the p-value is significant so reject the null that there is no trend.
+cfit = cochrane.orcutt(fit) # to confirm with chochrane-orcutt
+summary(cfit)
+x.z = fit$residuals # residuals from the noise component
+ar.z = aic.wge(x.z, p=0:7, q=0:3) # identify a model from the residuals
+plotts.wge(x.z) # visual of stationarity
+lines(x.z,col = "blue", type = "l")
 
-newFile <- read.csv('../Time-Series-Stocks/NASDAQ_Daily_ACGL.csv', header=T, strip.white=F)
-plotts.sample.wge(newFile$low, arlimits=T)
+est.ar.wge(df$low, p=12, type="mle") # we have 1 dominant (1-B) so we will difference it to remove the trend at the appropriate level
+new_df <- artrans.wge(df$low, phi.tr=1) # trend has been removed
 
-par(mfrow=c(2,2))
-plot(newFile$low,type = "l")
-lines(newFile$low,col = "blue", type = "l")
-pacf(newFile$low)
-acf(newFile$low)
-parzen.wge(newFile$low, trunc=45)
+model_bic <- aic5.wge(new_df, type="bic")
+somethin_bic <- est.arma.wge(new_df, p=model_bic$`   p`[1], q=model_bic$`   q`[1])
+fore.arma.wge(new_df, phi=somethin_bic$phi, theta=somethin_bic$theta, n.ahead=10, lastn=T, limits=T)
+
+model_aic <- aic5.wge(new_df, type="aic")
+somethin_aic <- est.arma.wge(new_df, p=model_aic$`   p`[1], q=model_aic$`   q`[1])
+fore.arma.wge(new_df, phi=somethin_aic$phi, theta=somethin_aic$theta, n.ahead=10, lastn=T, limits=T)
 
 
 
 
+x.trans = artrans.wge(df$low, phi.tr=ar.z$phi)
+plotts.wge(x.trans) # visual of stationarity
+lines(x.trans, col = "blue", type = "l")
+
+
+
+x.trans = artrans.wge(x.z, phi.tr=ar.z$phi)
+plotts.wge(x.trans) # visual of stationarity
+lines(x.trans, col = "blue", type = "l")
+
+model = est.ar.wge(x.trans, p=2, type="mle")
+fore.arma.wge(z, phi=model$phi, n.ahead=12, lastn=T)
+est.ar.wge(x.trans, p=12)
 ```
 
 Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.

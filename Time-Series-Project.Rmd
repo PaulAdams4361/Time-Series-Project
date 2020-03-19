@@ -115,17 +115,32 @@ $\hat{\sigma}_a = sd(differenced model)^2$
 
 ```{r Data Selection - Alternative for Differencing, echo=FALSE}
 #files = list.files(path='../Time-Series-Stocks', pattern='*.csv')
-knitr::opts_chunk$set(echo=T)
-knitr::opts_chunk$set(root.dir='C:/Users/Pablo/Desktop/z')
-
-files = list.files(path='../TS6373/CUsersPabloDesktopDatabaseProjectStocksNASDAQ_Daily/NASDAQ_Daily', pattern='*.csv')
+files = list.files(path='../Time-Series-Stocks', pattern='*.csv')
 
 for(file in files){
-  actualFile <- paste0('../TS6373/CUsersPabloDesktopDatabaseProjectStocksNASDAQ_Daily/NASDAQ_Daily/',file)
+  actualFile <- paste0('../Time-Series-Stocks/',file)
 
   df <- read.csv(actualFile)
   #newdf <- artrans.wge(df, phi.tr=1)
-  if(plotts.sample.wge(df$low)$dbz[1] < plotts.sample.wge(df$low)$dbz[2]){ # to prevent wandering realizations, exclude a peak at 0
+  if(
+    plotts.sample.wge(df$low)$dbz[1] < plotts.sample.wge(df$low)$dbz[2]|
+    plotts.sample.wge(df$low)$dbz[1] < plotts.sample.wge(df$low)$dbz[3]|
+    plotts.sample.wge(df$low)$dbz[1] < plotts.sample.wge(df$low)$dbz[4]|
+    plotts.sample.wge(df$low)$dbz[1] < plotts.sample.wge(df$low)$dbz[5]|
+    plotts.sample.wge(df$low)$dbz[1] < plotts.sample.wge(df$low)$dbz[6]|
+    plotts.sample.wge(df$low)$dbz[1] < plotts.sample.wge(df$low)$dbz[7]|
+    plotts.sample.wge(df$low)$dbz[1] < plotts.sample.wge(df$low)$dbz[8]|
+    plotts.sample.wge(df$low)$dbz[1] < plotts.sample.wge(df$low)$dbz[9]|
+    plotts.sample.wge(df$low)$dbz[1] < plotts.sample.wge(df$low)$dbz[10]|
+    plotts.sample.wge(df$low)$dbz[1] < plotts.sample.wge(df$low)$dbz[11]|
+    plotts.sample.wge(df$low)$dbz[1] < plotts.sample.wge(df$low)$dbz[12]|
+    plotts.sample.wge(df$low)$dbz[1] < plotts.sample.wge(df$low)$dbz[13]|
+    plotts.sample.wge(df$low)$dbz[1] < plotts.sample.wge(df$low)$dbz[14]|
+    plotts.sample.wge(df$low)$dbz[1] < plotts.sample.wge(df$low)$dbz[15]|
+    plotts.sample.wge(df$low)$dbz[1] < plotts.sample.wge(df$low)$dbz[16]|
+    plotts.sample.wge(df$low)$dbz[1] < plotts.sample.wge(df$low)$dbz[17]
+    ){ # to prevent wandering realizations, exclude a peak at 0
+  #if(plotts.sample.wge(df$low)$dbz[1] < plotts.sample.wge(df$low)$dbz[2]){ # to prevent wandering realizations, exclude a peak at 0
     
     aicfive <- aic5.wge(df$low, p=0:15, q=0:15, type="aic")
   
@@ -146,7 +161,7 @@ for(file in files){
 #  Sys.sleep(0.5)
 }
 
-df_report <- read.csv('c:/users/pablo/desktop/ts6373/z.csv')
+df_report <- read.csv('../z.csv')
 
 AIC_report <- sqldf("
 select 
@@ -174,7 +189,7 @@ data.frame(unique(df_arg$stock)) # c('','','','','','','','','','','','','','','
 ```{r Model Development & Analysis, echo=T, warning=F}
 
 # to look directly at what was selected:
-df_CPTAG <- read.csv('../DatabaseProject/Stocks/NASDAQ_Daily/NASDAQ_Daily_VRIG.csv', header=T)
+df_CPTAG <- read.csv('../DatabaseProject/Stocks/NASDAQ_Daily/NASDAQ_Daily_BLCN.csv', header=T)
 df_CPTAG <- data.frame(df_CPTAG$times, df_CPTAG$low)
 colnames(df_CPTAG) <- c("times", "low")
 plotts.sample.wge(df_CPTAG$low) # this is a weird one, but only extends beyond 95% limits in ACF roughly 5% of time so may be good.
