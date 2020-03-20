@@ -7,7 +7,7 @@ output: html_document
 
 ```{r setup, echo=T, warning=F}
 library(pacman)
-p_load(tswge, dplyr, kableExtra, sqldf, ggplot2, orcutt, tswgewrapped)
+p_load(tswge, dplyr, kableExtra, sqldf, ggplot2, orcutt, tswgewrapped, readr)
 ```
 
 # Project Data Description
@@ -51,7 +51,10 @@ for(file in files){
 # Signal-Plus-Noise Model
 
 ```{r Signal-Plus-Noise Model, echo=T, warning=F, fig.cap="Signal-Plus-Noise Model"}
-df <- read.csv('./NASDAQ_Daily_ACGL.csv', header=T, strip.white=F)
+urlfile="https://raw.githubusercontent.com/PaulAdams4361/Time-Series-Project/master/NASDAQ_Daily_ACGL.csv"
+df<-read_csv(url(urlfile))
+#df <- read.csv('./NASDAQ_Daily_ACGL.csv', header=T, strip.white=F)
+
 # take a sample of the data, analyze
 # plotts.sample.wge(df$low, arlimits=T)
 
@@ -113,8 +116,11 @@ In the ARIMA model, we selected a forecast horizon of five trading days because 
 
 visual inspection of the spectral density estimate in the Parzen Window and the sample autocorrelations, it is apparent the data are wandering. Therefore, we decided to difference the data to add stationarity into the model.
 ```{r ARIMA(p,d,q) Model, echo=T, warning=F, fig.cap="ARIMA(p,d,q) Model"}
-df <- read.csv('./NASDAQ_Daily_ACGL.csv', header=T, strip.white=F)
-plotts.sample.wge(df$low, arlimits=T)
+urlfile = "https://raw.githubusercontent.com/PaulAdams4361/Time-Series-Project/master/NASDAQ_Daily_ACGL.csv"
+df<-read_csv(url(urlfile))
+
+# take a sample of the data, analyze
+# plotts.sample.wge(df$low, arlimits=T)
 
 ###########################################################
 ########################################################### ARMA/ARIMA
