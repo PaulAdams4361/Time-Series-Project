@@ -5,65 +5,21 @@ date: "3/17/2020"
 output: html_document
 ---
 
-# Purpose
-## This process provides a method to obtain stocks ideal for time series models such as AR, MA, ARMA, ARIMA, and Signal-Plus-Noiseide using the R package twsge.
-```{r setup, include=FALSE}
+```{r setup, echo=T, warning=F}
 library(pacman)
 p_load(tswge, dplyr, kableExtra, sqldf, ggplot2, orcutt, tswgewrapped)
 ```
 
-## Project Data Description
+# Project Data Description
 
 In this project, we analyze 3,202 stock price and volume data time series traded on the NASDAQ exchange between May 30th and October 30th, 2019. This date range was selected for its distance from significant biological and political disruption to the markets, which can both introduce artificial seasonality and increased random variation into forecasts. Data was sourced as comma-separated values through API from AlphaVantage.
 
-Because of the time constraints involved with directly analyzing each stock, we developed a loop to process through each file, perform a brief assessment of the spectral density distribution to remove stocks with wandering behavior, defined by a peak at frequency zero. This was assessed by measuring if the first index of the Parzen Window is lower than any of the second through 17th indices. If not, the stock was discarded.
+Because of the time constraints involved with directly analyzing each stock, we developed a loop to process through each file, perform a linear model on each stock and where the slope for price is positive and greater than 0.04 and the price is within an affordable range - between 5 and 50 dollars per share - we then select that stock to assess if the spectral density indicates any wandering behavior based on a peak at zero and no additional peaks thereafter. Because of this wandering, the sample ACFs were also expected to damp exponentially, indicative of non-stationary behavior. This method allowed us to identify ideal stocks for signal-plus-noise modeling with postive, profitable trending. This method provided us 7 stocks we deemed useful, from which we selected one. The one we chose appeared to provide the most stationary noise around the signal.
 
-The methodology helped find stocks with seasonal components. We consider stationary seasonality to be an indication of a healthy company with long-term potential indicated by predictable behavior representing a balanced business process lifecycle. From that, we concluded if a company's stock performs in this way and the realization is positive, then it is a good stock for modeling.
+This method uses linear regression to identify a profitable signal-plus-noise model fit. Cochran-orcutt is needed after selection of stocks.
 
-Following the first-pass wandering analysis, all but 36 stocks remained, which we then analyzed directly using the parzen window's spectral density estimate, autocorrelation and partials autocorrelation plots and the realizations themselves. 
-
-Once we obtained our chosen one, we estimated a model to fit it.
-```{r cars}
-files = list.files(path='../Time-Series-Stocks', pattern='*.csv')
-
-for(file in files){
-  actualFile <- paste0('../Time-Series-Stocks/',file)
-  
-  df <- read.csv(actualFile, header=T, strip.white=T)
-
-  if(
-    plotts.sample.wge(df$low)$dbz[1] < plotts.sample.wge(df$low)$dbz[2]|
-    plotts.sample.wge(df$low)$dbz[1] < plotts.sample.wge(df$low)$dbz[3]|
-    plotts.sample.wge(df$low)$dbz[1] < plotts.sample.wge(df$low)$dbz[4]|
-    plotts.sample.wge(df$low)$dbz[1] < plotts.sample.wge(df$low)$dbz[5]|
-    plotts.sample.wge(df$low)$dbz[1] < plotts.sample.wge(df$low)$dbz[6]|
-    plotts.sample.wge(df$low)$dbz[1] < plotts.sample.wge(df$low)$dbz[7]|
-    plotts.sample.wge(df$low)$dbz[1] < plotts.sample.wge(df$low)$dbz[8]|
-    plotts.sample.wge(df$low)$dbz[1] < plotts.sample.wge(df$low)$dbz[9]|
-    plotts.sample.wge(df$low)$dbz[1] < plotts.sample.wge(df$low)$dbz[10]|
-    plotts.sample.wge(df$low)$dbz[1] < plotts.sample.wge(df$low)$dbz[11]|
-    plotts.sample.wge(df$low)$dbz[1] < plotts.sample.wge(df$low)$dbz[12]|
-    plotts.sample.wge(df$low)$dbz[1] < plotts.sample.wge(df$low)$dbz[13]|
-    plotts.sample.wge(df$low)$dbz[1] < plotts.sample.wge(df$low)$dbz[14]|
-    plotts.sample.wge(df$low)$dbz[1] < plotts.sample.wge(df$low)$dbz[15]|
-    plotts.sample.wge(df$low)$dbz[1] < plotts.sample.wge(df$low)$dbz[16]|
-    plotts.sample.wge(df$low)$dbz[1] < plotts.sample.wge(df$low)$dbz[17]
-    ){
-    
-    aicfive <- aic5.wge(df$low, p=0:15, q=0:15, type="aic")
-
-    if(aicfive$`       aic` < 0){
-      y <- data.frame(file, aicfive$`   p`, aicfive$`   q`, aicfive$`       aic`)
-      colnames(y) <- NULL
-      write.table(y, './models_aic_less_than_0.csv', append=T)
-    }
-  }
-#  Sys.sleep(0.15)
-}
-```
-
-# This method uses linear regression to identify a profitable signal-plus-noise model fit. Cochran-orcutt is needed after selection of stocks.
-```{r Signal Plus Noise, echo=T}
+# Data Selection
+```{r Stock Selection, echo=T, warning=F, eval=F, fig.cap="Stock Selection"}
 files = list.files(path='../Time-Series-Stocks', pattern='*.csv')
 
 for(file in files){
@@ -91,85 +47,13 @@ for(file in files){
 
 ```
 
-## This is most likely not useful:
-```{r pressure, echo=FALSE}
+
+# Signal-Plus-Noise Model
+
+```{r Signal-Plus-Noise Model, echo=T, warning=F, fig.cap="Signal-Plus-Noise Model"}
 df <- read.csv('./NASDAQ_Daily_ACGL.csv', header=T, strip.white=F)
-plotts.sample.wge(df$low, arlimits=T)
-
-############## sandbox
-############## sandbox
-############## sandbox
-############## sandbox
-
-aic5.wge(df$low, type="aic")
-df.r = est.arma.wge(df$low, p=5) # dominant factor is a (1-B) so we need to difference the data
-# (1-1.0272B+0.5751B^2)(1+0.8350B+0.3648B^2) => (0.20979648B^4 + 0.10548594B^3 + 0.082188B^2 - 0.1922B + 1)X_t = a_t
-
-plotts.sample.wge(df.r$res, arlimits=T)
-ljung.wge(df.r$res, p=5) # p-value is not significant so we do not reject the null. The autocorrelations are likely white noise for all t.
-ljung.wge(df.r$res, p=5, K=48) # the p-value remains above the level of significance.
-
-plotts.true.wge(phi=df.r$phi) # the spectral density of both the residuals and the actuals have wandering peaks. We apply an
-plotts.sample.wge(df$low) # ARUMA(5,1,)
-
-############## sandbox
-############## sandbox
-############## sandbox
-############## sandbox
-
-
-t = seq(1, nrow(df),1)
-fit = lm(df$low~t)
-# there is deterministic trend; the p-value is significant so reject the null that it is not deterministic. The null argues
-# that any trend is random. The alternative argues that the trend is deterministic. Here, we reject the null:
-summary(fit)
-cfit = cochrane.orcutt(fit) # to confirm with chochrane-orcutt
-summary(cfit) # Cochran-Orcutt also provides a significant p-value
-
-# Because the model is confirmed to have a deterministic trend, we will forecast with a signal-plus-noise model
-# Now, we need to analyze the residuals to determine if our
-x.z = fit$residuals # residuals from the noise component
-ar.z = aic5.wge(x.z, p=0:7, q=0, type="aic") # identify a model from the residuals; because we can only forecast sigplusnoise with AR(p), no q measured. Also confirmed, aic and bic both pick an AR(2) model as the best AR(p)
-plotts.sample.wge(x.z) # the spectral density of the residuals matches that of the original distribution
-lines(x.z,col = "blue", type = "l")
-test = artrans.wge(x.z, phi.tr=1)
-plotts.sample.wge(test, arlimits=T)
-
-
-# mle because it produces stationary and non-stationary models.
-est.ar.wge(df$low, p=12, type="mle") # we have one dominant (1-B) in the original data so we take a first difference to remove the trend
-new_df <- artrans.wge(df$low, phi.tr=1) # trend has been removed
-plotts.sample.wge(new_df)
-
-model_bic <- aic5.wge(new_df, type="bic")
-final_model_bic <- est.arma.wge(new_df, p=model_bic$`   p`[1], q=model_bic$`   q`[1])
-fore.arma.wge(new_df, phi=final_model_bic$phi, theta=final_model_bic$theta, n.ahead=10, lastn=T, limits=T)
-
-
-model_aic <- aic5.wge(new_df, type="aic")
-final_model_aic <- est.arma.wge(new_df, p=model_aic$`   p`[1], q=model_aic$`   q`[1])
-fore.arma.wge(df$low, phi=final_model_aic$phi, theta=final_model_aic$theta, n.ahead=10, lastn=T, limits=T)
-
-x.trans = artrans.wge(df$low, phi.tr=ar.z$phi)
-plotts.wge(x.trans) # visual of stationarity
-lines(x.trans, col = "blue", type = "l")
-
-
-
-x.trans = artrans.wge(x.z, phi.tr=ar.z$phi)
-plotts.wge(x.trans) # visual of stationarity
-lines(x.trans, col = "blue", type = "l")
-
-model = est.ar.wge(x.trans, p=2, type="mle")
-fore.arma.wge(z, phi=model$phi, n.ahead=12, lastn=T)
-est.ar.wge(x.trans, p=12)
-```
-
-
-### Outline below is taken from the example using Hadley data from Unit 11 asynch. This signal plus noise should be good to go:
-```{r echo=T}
-df <- read.csv('./NASDAQ_Daily_ACGL.csv', header=T, strip.white=F)
-plotts.sample.wge(df$low, arlimits=T)
+# take a sample of the data, analyze
+# plotts.sample.wge(df$low, arlimits=T)
 
 ####################
 # Signal-Plus-Noise
@@ -210,47 +94,82 @@ ar.z$phi
 # BUT, TO REITERATE: Final Signal-Plus-Noise Model is X_t = 34.855438 + 0.072922*t + Z_t, (sigmaHAT_a)^2 = 0.1177843
 est_mod = gen.sigplusnoise.wge(100, b0=34.855438, b1 = 0.072922, phi=ar.z$phi, vara=0.1177843) # This is the estimated model in wge form
 plotts.sample.wge(est_mod)
-plotts.sample.wge(df$low) # the estimated model (above) matches to the actual model (here) on both ACFs and Spectral density as well as on partial ACF (below):
+plotts.sample.wge(df$low) # the estimated model (above) matches to the actual model (here) on both sample ACFs and sample spectral density as well as on partial ACF (below):
 pacf(est_mod)
 pacf(df$low)
-fore.sigplusnoise.wge(df$low, max.p=2, n.ahead=10, limits=T, lastn=T, plot=T)
+
+signoise.forecast <- fore.sigplusnoise.wge(df$low, max.p=2, n.ahead=10, limits=T, lastn=T, plot=T)
+SIGNOISE_ASE = mean((df$low[(nrow(df)-5+1):nrow(df)] - signoise.forecast$f)^2)
+SIGNOISE_ASE
 ```
 
 
-a### We take the signal, test the hypothesis of the presence of deterministic signal in the realization. Then, we separate the noise from the signal and estimate and ARMA/ARIMA model using differencing. We then take the model estimates and generate a signal pluse noise model forecast.
+# ARIMA(p,d,q) Model
+
+We take the signal, test the hypothesis of the presence of deterministic signal in the realization. Then, we separate the noise from the signal and estimate and ARMA/ARIMA model using differencing. We then take the model estimates and generate a signal pluse noise model forecast.
 
 In the ARIMA model, we selected a forecast horizon of five trading days because this timeframe completes a full business week. Models can be fully re-developed on non-trading days. However, unless there are 2 unit roots, ARIMA will not forecast a trend to continue. Therefore, the forecast converge back toward the mean.
 
 
 visual inspection of the spectral density estimate in the Parzen Window and the sample autocorrelations, it is apparent the data are wandering. Therefore, we decided to difference the data to add stationarity into the model.
-```{r Seasonal ARIMA Model, echo=T, warning=F}
+```{r ARIMA(p,d,q) Model, echo=T, warning=F, fig.cap="ARIMA(p,d,q) Model"}
 df <- read.csv('./NASDAQ_Daily_ACGL.csv', header=T, strip.white=F)
 plotts.sample.wge(df$low, arlimits=T)
-# factor.wge(df$low) # many unit roots in the data
-noo_df <- artrans.wge(df$low, phi.tr=1)
-parz <- plotts.sample.wge(noo_df)
-noo_s <- round(1/parz$freq[which(parz$dbz == (max(parz$dbz)))], digits=0) # s=7
-# Factor table for s=7:
-aic5.wge(noo_df, type="aic") # aic picked an ARMA(5,1)
-est.arma.wge(noo_df, p=13, q=1) # to over-fit the factor table, ARMA(10,2)
-factor.wge(phi=c(rep(1,6),1))
 
-est.arma.wge(noo_df, p=0, q=4) 
-aic5.wge(noo_df, p=0:10, q=0:5) # because of complexity of model, AR(10) and MA(5)
-est.arma.wge(noo_df, p=0, q=4)
-noo_estimated <- est.arma.wge(noo_df, p=5, q=1)
+###########################################################
+########################################################### ARMA/ARIMA
+###########################################################
 
-# Comparing seasonal to non-seasonal model
-seasonal.forecast <- fore.aruma.wge(df$low, theta=c(-0.05410508,0.16208339,0.21123368,0.40580505), d=1, s=7, n.ahead=15, lastn=T) #seasonal
-nonseasonal.forecast <- fore.aruma.wge(df$low, theta=c(-0.05410508,0.16208339,0.21123368,0.40580505), d=1, n.ahead=5, lastn=T) # non-seasonal
-plot(df$low, type="l")
+factor.wge(df$low) # many unit roots in the data
+aic5.wge(df$low, type="aic")
+est.arma.wge(df$low, p=5, q=0) # the factor table for df$low provides one (1-B) represented as (1-0.9956B), a close-enough approximation. Therefore, we difference the data once. Preliminary evidence suggesting differencing is useful is based on the specified wandering and the damping sample autocorrelations.
 
-tswgewrapped::ase(df$low, seasonal.forecast)
-tswgewrapped::ase(df$low, nonseasonal.forecast)
+dftrans <- artrans.wge(df$low, phi.tr=1)
+aic5.wge(dftrans, type="aic") # aic = -2.001944
+estimated_arma <- est.arma.wge(dftrans, p=5, q=1)
+estimated_arma$avar # 0.1172604
+mean(dftrans) # 0.07590909
+# (1-B)(1-1.04489743B+0.24211505B^2+0.05167856B^3+0.11537566B^4-0.17553271B^5)*(X_t + 0.0759) = a_t, (sigma-hat_a)^2 = 0.93
+# (1-2.04489743B + 1.28701248B^2 - 0.19043649B^3 + 0.0636971B^4 - 0.29090837B^5 + 0.17553271B^6)(X_t + 0.0759) = a_t, (sigma-hat_a)^2 = 0.93
 
+######
+###### Plotting residuals
+
+# the residuals of the model do not appear correlated. The sample autocorrelation and partial autocorrelation plots indicate stationarity across all lags with all lags measured within the 5% limits
+plotts.sample.wge(estimated_arma$res)
+par(mfrow=c(3,1))
+plot(estimated_arma$res, ylab="ARIMA Residuals", xlab="Time", type="l", main = "ARIMA(5,1,1) Model Residuals over Time")
+abline(h=mean(estimated_arma$res), col="blue")
+acf(estimated_arma$res) # this seems to be white noise; all lags are within the 5% limits
+pacf(estimated_arma$res) # this seems to be white noise; all lags are within the 5% limits
+aic5.wge(estimted_arma$res, type="aic") # White noise is the top model selected for the residuals, by AIC (ARMA(0,0))
+######
+######
+
+######
+###### Compare estimated model to differenced data
+
+# We generated a model of 99 data points using the ARMA(5,1) identified by aic5 with a variance equal to that estimated from the differenced data, which is 0.1172604 (select to see origin highlighted above)
+est_mod2 <- gen.aruma.wge(99, phi=estimated_arma$phi, theta=estimated_arma$theta, d=1, vara=estimated_arma$avar, sn=30)
+plotts.sample.wge(est_mod2, arlimits=T) # estimated model
+plotts.sample.wge(dftrans, arlimits=T) # original differenced data
+
+# after comparing sample spectral density and ACF plots, we comapred the AIC-estimated models to compare identified models
+aic5.wge(dftrans)
+aic5.wge(est_mod2) # ARMA(5,0) and ARMA(5,1) are top in both models, indicating a potentially useful model..
+
+######
+######
+
+######
+###### Forecast and Measure Average Squared Errors (ASE)
+
+# Model Forecast and ASE
+# Forecasting the differenced data using the parameters estimated from it (we do not apply a d=1)
+nonseasonal.forecast <- fore.aruma.wge(dftrans, phi=estimated_arma$phi, theta=estimated_arma$theta, n.ahead=5, lastn=T)
+ARIMA_ASE = mean((dftrans[(length(dftrans)-5+1):length(dftrans)] - nonseasonal.forecast$f)^2)
+ARIMA_ASE # 0.3454855
+
+######
+######
 ```
-
-```{r echo=T}
-
-```
-Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
