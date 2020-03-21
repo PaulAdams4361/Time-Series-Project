@@ -144,9 +144,9 @@ for( i in 1: 5)
 #########################################################################################################
 #########################################################################################################
 
-signoise.forecast <- fore.sigplusnoise.wge(df$low, max.p=2, n.ahead=10, limits=T, lastn=T, plot=T)
+signoise.forecast <- fore.sigplusnoise.wge(df$low, max.p=2, n.ahead=5, limits=T, lastn=T, plot=T)
 SIGNOISE_ASE = mean((df$low[(nrow(df)-5+1):nrow(df)] - signoise.forecast$f)^2)
-SIGNOISE_ASE # 0.1654078
+SIGNOISE_ASE # 0.133713
 ```
 
 
