@@ -182,6 +182,7 @@ aic5.wge(dftrans, type="aic") # aic = -2.001944
 estimated_arma <- est.arma.wge(dftrans, p=5, q=0)
 estimated_arma$phi
 #estimated_arma <- est.arma.wge(dftrans, p=15, q=1)
+ljung.wge(estimated_arma$res, p=5, q=0) # Indication there is no serial correlation in the residuals of the model; this is a good fit.
 
 estimated_arma$avar # 0.1240151
 mean(df$low) # 38.53802
