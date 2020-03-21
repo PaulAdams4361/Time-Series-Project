@@ -62,7 +62,7 @@ for(file in files){
 
 ```{r Signal-Plus-Noise Model, echo=T, warning=F, fig.cap="Signal-Plus-Noise Model"}
 urlfile="https://raw.githubusercontent.com/PaulAdams4361/Time-Series-Project/master/NASDAQ_Daily_ACGL.csv"
-df<-read_csv(url(urlfile))
+df <- read_csv(url(urlfile))
 #df <- read.csv('./NASDAQ_Daily_ACGL.csv', header=T, strip.white=F)
 
 # take a sample of the data, analyze
@@ -91,7 +91,8 @@ x.z = fit$residuals # derive residuals (from the regression line)
 ar.z = aic.wge(x.z, p=0:6, type="aic") # find a model to use for approximating the residuals. NOTE: (sigmaHAT_a)^2 = 0.1177843
 # ar.z$p is the order p (aic selects p=2 where q=0, as does the bic)
 
-# Transform the stock prices by the autoregressive coefficients of the fitted residuals from the linear regression model
+# Transform the stock prices by the autoregressive coefficients of the fitted residuals from the linear regression model. 
+# Remove phi from residuals to remove serial correlation and allow us to model
 y.trans = artrans.wge(df$low, phi.tr=ar.z$phi)
 # also, transform the predictor variable (time) by the autogregressive coefficeints of the fitted residuals as well
 t.trans  = artrans.wge(t, phi.tr=ar.z$phi)
@@ -117,6 +118,24 @@ plotts.sample.wge(df$low) # the estimated model (above) matches to the actual mo
 # density as well as on partial ACF (below):
 pacf(est_mod)
 pacf(df$low)
+
+#########################################################################################################
+############### Confirmation for repeated model visualization of ACF and Spectral Density ###############
+#########################################################################################################
+for( i in 1: 5)
+{
+   SpecDen2 = parzen.wge(gen.sigplusnoise.wge(100, b0=34.855438, b1 = 0.072922, phi=ar.z$phi, vara=0.1177843), plot = T)
+   lines(SpecDen2$freq,SpecDen2$pzgram, lwd = 2, col = "red")
+}
+
+for( i in 1: 5)
+{
+   ACF2 = acf(gen.sigplusnoise.wge(100, b0=34.855438, b1 = 0.072922, phi=ar.z$phi, vara=0.1177843), plot = T)
+   lines(ACF2$lag ,ACF2$acf, lwd = 2, col = "red")
+}
+#########################################################################################################
+#########################################################################################################
+#########################################################################################################
 
 signoise.forecast <- fore.sigplusnoise.wge(df$low, max.p=2, n.ahead=10, limits=T, lastn=T, plot=T)
 SIGNOISE_ASE = mean((df$low[(nrow(df)-5+1):nrow(df)] - signoise.forecast$f)^2)
@@ -151,16 +170,21 @@ factor.wge(df$low) # many unit roots in the data
 aic5.wge(df$low, type="aic")
 est.arma.wge(df$low, p=5, q=0) # the factor table for df$low provides one (1-B) represented as (1-0.9956B), a close-enough 
 # approximation. Therefore, we difference the data once. Preliminary evidence suggesting differencing is useful is based 
-# on the specified wandering and the damping sample autocorrelations.
+# on the specified wandering and the damping sample autocorrelations. When using an overfit table, there was a factor close
+# to (1-b)^2, but it was not very significant (third most significant using estimated_arma <- est.arma.wge(dftrans, p=15, q=1))
+# so we decided to only use a first difference.
 
 dftrans <- artrans.wge(df$low, phi.tr=1)
 aic5.wge(dftrans, type="aic") # aic = -2.001944
-estimated_arma <- est.arma.wge(dftrans, p=5, q=1)
-estimated_arma$avar # 0.1172604
+estimated_arma <- est.arma.wge(dftrans, p=5, q=0)
+
+#estimated_arma <- est.arma.wge(dftrans, p=15, q=1)
+
+estimated_arma$avar # 0.1240151
 mean(dftrans) # 0.07590909
-# (1-B)(1-1.04489743B+0.24211505B^2+0.05167856B^3+0.11537566B^4-0.17553271B^5)*(X_t + 0.0759) = a_t, (sigma-hat_a)^2 = 0.93
+# (1-B)(1-1.04489743B+0.24211505B^2+0.05167856B^3+0.11537566B^4-0.17553271B^5)*(X_t + 0.0759) = a_t, (sigma-hat_a)^2 = 0.1240151
 # (1-2.04489743B + 1.28701248B^2 - 0.19043649B^3 + 0.0636971B^4 - 0.29090837B^5 + 0.17553271B^6)(X_t + 0.0759) = a_t, 
-# (sigma-hat_a)^2 = 0.93
+# (sigma-hat_a)^2 = 0.1240151
 
 ######
 ###### Plotting residuals
@@ -182,9 +206,28 @@ aic5.wge(estimted_arma$res, type="aic") # White noise is the top model selected 
 
 # We generated a model of 99 data points using the ARMA(5,1) identified by aic5 with a variance equal to that estimated from the
 # differenced data, which is 0.1172604 (select to see origin highlighted above)
-est_mod2 <- gen.aruma.wge(99, phi=estimated_arma$phi, theta=estimated_arma$theta, d=1, vara=estimated_arma$avar, sn=30)
-plotts.sample.wge(est_mod2, arlimits=T) # estimated model
-plotts.sample.wge(dftrans, arlimits=T) # original differenced data
+est_mod <- gen.aruma.wge(99, phi=estimated_arma$phi, theta=estimated_arma$theta, d=1, vara=estimated_arma$avar, sn=40)
+plotts.sample.wge(est_mod, arlimits=T) # estimated model
+plotts.sample.wge(df$low, arlimits=T) # estimated model
+
+
+#########################################################################################################
+############### Confirmation for repeated model visualization of ACF and Spectral Density ###############
+#########################################################################################################
+for( i in 1: 5)
+{
+   SpecDen2 = parzen.wge(gen.aruma.wge(99, phi=estimated_arma$phi, theta=estimated_arma$theta, d=1, vara=estimated_arma$avar), plot = T)
+   lines(SpecDen2$freq,SpecDen2$pzgram, lwd = 2, col = "red")
+}
+
+for( i in 1: 5)
+{
+   ACF2 = acf(gen.aruma.wge(99, phi=estimated_arma$phi, theta=estimated_arma$theta, d=1, vara=estimated_arma$avar), plot = T)
+   lines(ACF2$lag ,ACF2$acf, lwd = 2, col = "red")
+}
+#########################################################################################################
+#########################################################################################################
+#########################################################################################################
 
 # after comparing sample spectral density and ACF plots, we comapred the AIC-estimated models to compare identified models
 aic5.wge(dftrans)
@@ -198,10 +241,9 @@ aic5.wge(est_mod2) # ARMA(5,0) and ARMA(5,1) are top in both models, indicating 
 
 # Model Forecast and ASE
 # Forecasting the differenced data using the parameters estimated from it (we do not apply a d=1)
-nonseasonal.forecast <- fore.aruma.wge(dftrans, phi=estimated_arma$phi, theta=estimated_arma$theta, n.ahead=5, lastn=T)
-ARIMA_ASE = mean((dftrans[(length(dftrans)-5+1):length(dftrans)] - nonseasonal.forecast$f)^2)
-ARIMA_ASE # 0.3454855
-
+nonseasonal.forecast <- fore.aruma.wge(df$low, phi=estimated_arma$phi, theta=estimated_arma$theta, d=1,n.ahead=5, lastn=T)
+ARIMA_ASE = mean((df$low[(nrow(df)-5+1):nrow(df)] - nonseasonal.forecast$f)^2)
+ARIMA_ASE# 0.2026529
 ######
 ######
 ```
