@@ -30,6 +30,7 @@ stocks.
 
 # Data Selection
 ```{r Stock Selection, echo=T, warning=F, eval=F, fig.cap="Stock Selection"}
+plotts.sample.wge(df$low, trunc=25, arlimits=T)
 files = list.files(path='../Time-Series-Stocks', pattern='*.csv')
 
 for(file in files){
