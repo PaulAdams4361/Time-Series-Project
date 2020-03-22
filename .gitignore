@@ -1,0 +1,26 @@
+# R history files
+.Rhistory
+.Rapp.history
+
+# R session data
+.RData
+
+# user-specific files
+.Ruserdata
+
+# Output files from R CMD build
+/*.tar.gz
+
+# output files from R CMD check
+/*.Rcheck/
+
+# RStudio files
+.Rproj.user/
+
+# knitr and R markdown default cache
+*_cache/
+/cache/
+
+# temp R markdown files
+*.utf8.md
+*.knit.md
