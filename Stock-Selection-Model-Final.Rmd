@@ -74,11 +74,12 @@ fig
 
 ```
 
-```{r Custom DataFrame, echo=T, warning=F, fig.cap="Signal-Plus-Noise Model"}
+```{r Custom Project DataFrame, echo=T, warning=F, fig.cap="Signal-Plus-Noise Model"}
 
 stock_data <- function(x){
   urlfile="https://raw.githubusercontent.com/PaulAdams4361/Time-Series-Project/master/NASDAQ_Daily_ACGL.csv"
   df <- read_csv(url(urlfile))
+  df$volume <- (df$volume/10000)
   HiLo <- df$high - df$low
   HiClo <- df$high - df$close
   OpHi <- df$open - df$high
@@ -280,33 +281,71 @@ ARIMA_ASE# 0.2026529
 ######
 ```
 
-```{r Multiple Linear Regression Time Series, echo=T, warning=F, eval=F}
+```{r Multiple Linear Regression Time Series without Time, echo=T, warning=F}
 df <- stock_data()
 
-t=1:nrow(df) # df has 100 rows. Creating a time vector with this for trending
+# ccf(data.frame(df$volume, df$low, type="correlation")
+ksfit <- lm(low ~ volume + HiLo + OpClo, data=df)
 
-ccf(data.frame(df$volume, df$low, type="correlation")
-ksfit <- lm(low ~ volume, data=df)
-
-aic.wge(ksfit$residuals, p=0:8, q=0)  # AIC picks p=5 for ACGL
+aic.wge(ksfit$residuals, p=0:10, q=0:5)  # AIC picks p=5 for ACGL; AIC picks p=2, q=1 for ACGL
 # ARIMA(p,d,q) where p=7. The exogenous variable is volume
-fit <- arima(df$low, order=c(5,0,0), xreg=df[,'volume'])
+# fit <- arima(df$low, order=c(5,0,0), xreg=df[,'volume'])
+
+# Volume and the differences between high and low, open and closed seem the most reasonable
+fit <- arima(df$low, order=c(2,0,1), xreg=cbind(df$volume, df$HiLo, df$OpClo))
 fit
 
 acf(fit$residuals)
 ltest <- ljung.wge(fit$resid)
-ltest$pval # p-value is very significant; reject the null - this is definitely not white noise
+ltest$pval # p-value is not significant; we cannot reject the null based on this test because the residuals are likely white noise
 
 # ASE for model with no lag and no trend (last 5)
-BSales2 <- BSales[1:95,] # make a training dataset that excludes the most recent 5 points that we want to predict (our test data, or "holdout")
-ksfit <- lm(sales ~ ad_tv + ad_online + discount, data=BSales2)
-aic.wge(ksfit$residuals,p=0:8, q=0)  # AIC picks p=7
-fit <- arima(BSales2$sales,order=c(7,0,0),xreg=cbind(BSales2$ad_tv, BSales2$ad_online, BSales2$discount))
+df2 <- df[1:(nrow(df)-5),] # make a training dataset that excludes the most recent 5 points that we want to predict (our test data, or "holdout")
+ksfit <- lm(low ~ volume + HiLo + OpClo, data=df2)
+aic.wge(ksfit$residuals,p=0:8, q=0:5)  # AIC picks p=5 q=1, AIC picks p=7
+fit <- arima(df2$low, order=c(5,0,1), xreg=cbind(df2$volume, df2$HiLo, df2$OpClo))
 fit
 
-preds <- predict(fit, newxreg=cbind(BSales$ad_tv[96:100],BSales$ad_online[96:100],BSales$discount[96:100]))
-ASE1 <- mean((BSales$sales[96:100] - preds$pred)^2)
-ASE1
+preds <- predict(fit, newxreg=cbind(df$volume[(nrow(df)-4):nrow(df)], df$HiLo[(nrow(df)-4):nrow(df)], df$OpClo[(nrow(df)-4):nrow(df)]))
+ASE <- mean((df$low[(nrow(df)-4):nrow(df)] - preds$pred)^2)
+ASE # 0.1251275
+
+plot(seq(1,nrow(df),1), df$low, type="b")
+points(seq((nrow(df) - 4), nrow(df), 1), preds$pred, type="b", pch=15)
+
+```
+
+```{r Multiple Linear Regression Time Series Including Trending with Time, echo=T, warning=F}
+df <- stock_data()
+t=1:nrow(df) # df has 100 rows. Creating a time vector with this for trending
+
+# ccf(data.frame(df$volume, df$low, type="correlation")
+ksfit <- lm(low ~ t + volume + HiLo + OpClo, data=df)
+
+aic.wge(ksfit$residuals, p=0:10, q=0:5)  # AIC picks p=2, q=0 for ACGL
+
+# Volume and the differences between high and low, open and closed seem the most reasonable
+fit <- arima(df$low, order=c(2,1,0), xreg=cbind(t, df$volume, df$HiLo, df$OpClo)) # earlier analysis determined a difference is needed
+fit
+
+acf(fit$residuals)
+ltest <- ljung.wge(fit$resid)
+ltest$pval # p-value is not significant; we cannot reject the null based on this test because the residuals are likely white noise
+
+# ASE for model with no lag and no trend (last 5)
+df2 <- df[1:(nrow(df)-5),] # make a training dataset that excludes the most recent 5 points that we want to predict (our test data, or "holdout")
+t2 <- 1:(nrow(df)-5)
+ksfit <- lm(df2$low ~ t2 + df2$volume + df2$HiLo + df2$OpClo + t2*df2$volume)
+aic.wge(ksfit$residuals,p=0:8, q=0:5)  # AIC picks p=2 q=0
+fit <- arima(df2$low, order=c(2,1,1), xreg=cbind(t2, df2$volume, df2$HiLo, df2$OpClo, t2*df2$volume))
+fit
+
+preds <- predict(fit, newxreg=cbind(t[(nrow(df)-4):nrow(df)], df$volume[(nrow(df)-4):nrow(df)], df$HiLo[(nrow(df)-4):nrow(df)], df$OpClo[(nrow(df)-4):nrow(df)], t[(nrow(df)-4):nrow(df)]*df$volume[(nrow(df)-4):nrow(df)]))
+ASE <- mean((df$low[(nrow(df)-4):nrow(df)] - preds$pred)^2)
+ASE # 0.03534549
+
+plot(seq(1,nrow(df),1), df$low, type="b")
+points(seq((nrow(df) - 4), nrow(df), 1), preds$pred, type="b", pch=15)
 
 ```
 
@@ -331,8 +370,7 @@ fit <- arima(BSales2$sales,order=c(7,0,0),xreg=cbind(BSales2$ad_tv, BSales2$ad_o
 fit
 
 preds <- predict(fit, newxreg=cbind(BSales$ad_tv[96:100],BSales$ad_online[96:100],BSales$discount[96:100]))
-ASE1 <- mean((BSales$sales[96:100] - preds$pred)^2)
-ASE1
-
+ASE <- mean((BSales$sales[96:100] - preds$pred)^2)
+ASE
 
 ```
