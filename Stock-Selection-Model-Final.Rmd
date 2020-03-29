@@ -1,4 +1,4 @@
-  ---
+---
 title: "Stock-Selection-Analysis"
 author: "Paul Adams & Jeff Nguyen"
 date: "3/17/2020"
@@ -7,7 +7,7 @@ output: html_document
 
 ```{r setup, echo=F, warning=F}
 library(pacman)
-p_load(tswge, dplyr, kableExtra, sqldf, ggplot2, orcutt, tswgewrapped, readr, vars, RColorBrewer, plotly)
+p_load(tswge, dplyr, kableExtra, sqldf, ggplot2, orcutt, tswgewrapped, readr, vars, RColorBrewer, plotly, nnfor)
 ```
 
 # Project Data Description
@@ -59,6 +59,7 @@ for(file in files){
 ```
 
 # This is the stock we discovered. Candlestick chart for fun.
+Because the variation within high, low, open, and close prices can indicate stability of performance of a stock in terms of stationarity, we decided to include a ratio of box-to-tail dimensions
 ```{r Candlesticks for Visual Fun, echo=T, warning=F, fig.cap="Candlestick Chart for ACGL"}
 urlfile = "https://raw.githubusercontent.com/PaulAdams4361/Time-Series-Project/master/NASDAQ_Daily_ACGL.csv"
 df <- read_csv(url(urlfile))
@@ -73,7 +74,8 @@ fig <- fig %>% layout(title = "Candlestick Chart for ACGL")
 fig
 
 ```
-
+For example, during an uptrend, if a trader is watching for price bars dropping below a moving average (MA), then using the low of each candle as the input for the MA may make more sense than using the close. 
+https://www.thebalance.com/average-of-the-open-high-low-and-close-1031216
 ```{r Custom Project DataFrame, echo=T, warning=F, fig.cap="Signal-Plus-Noise Model"}
 
 stock_data <- function(x){
@@ -86,7 +88,8 @@ stock_data <- function(x){
   OpClo <- df$open - df$close
   OpLo <- df$open - df$low
   CloLo <- df$close - df$low
-  df <- data.frame(cbind(df, HiLo, HiClo, OpHi, OpClo, OpLo, CloLo))
+  varianceRatio <- (df$open - df$close) / (df$high - df$low) * 100
+  df <- data.frame(cbind(df, varianceRatio, HiLo, HiClo, OpHi, OpClo, OpLo, CloLo))
   return(df)
 }
 
@@ -226,7 +229,7 @@ mean(df$low) # 38.53802
 # stationarity across all lags with all lags measured within the 5% limits
 plotts.sample.wge(estimated_arma$res)
 par(mfrow=c(3,1))
-plot(estimated_arma$res, ylab="ARIMA Residuals", xlab="Time", type="l", main = "ARIMA(5,1,1) Model Residuals over Time")
+plot(estimated_arma$res, ylab="ARIMA Residuals", xlab = "Trading Days", main = "ARIMA(5,1,1) Model Residuals over Time", lwd=2)
 abline(h=mean(estimated_arma$res), col="blue")
 acf(estimated_arma$res) # this seems to be white noise; all lags are within the 5% limits
 pacf(estimated_arma$res) # this seems to be white noise; all lags are within the 5% limits
@@ -310,12 +313,12 @@ preds <- predict(fit, newxreg=cbind(df$volume[(nrow(df)-4):nrow(df)], df$HiLo[(n
 ASE <- mean((df$low[(nrow(df)-4):nrow(df)] - preds$pred)^2)
 ASE # 0.1251275
 
-plot(seq(1,nrow(df),1), df$low, type="b")
-points(seq((nrow(df) - 4), nrow(df), 1), preds$pred, type="b", pch=15)
+plot(seq(1,nrow(df),1), df$low, type="b", xlab = "Trading Days", ylab = "Trade Prices", main = "Multiple Linear Regression without Trend", lwd=2)
+points(seq((nrow(df) - 4), nrow(df), 1), preds$pred, type="b", pch=15, lwd=2)
 
 ```
 
-```{r Multiple Linear Regression Time Series Including Trending with Time, echo=T, warning=F}
+```{r Multiple Linear Regression with Trend, Time and Volume Interaction, echo=T, warning=F}
 df <- stock_data()
 t=1:nrow(df) # df has 100 rows. Creating a time vector with this for trending
 
@@ -344,33 +347,223 @@ preds <- predict(fit, newxreg=cbind(t[(nrow(df)-4):nrow(df)], df$volume[(nrow(df
 ASE <- mean((df$low[(nrow(df)-4):nrow(df)] - preds$pred)^2)
 ASE # 0.03534549
 
-plot(seq(1,nrow(df),1), df$low, type="b")
+plot(seq(1,nrow(df),1), df$low, type="b", xlab = "Trading Days", ylab = "Trade Prices", main = "Multiple Linear Regression with Trend and Volume Interaction", lwd=2)
 points(seq((nrow(df) - 4), nrow(df), 1), preds$pred, type="b", pch=15)
-
 ```
 
-```{r Vector Autoregressive Modeling, echo=T, warning=F, eval=F}
+```{r Multiple Linear Regression with Trend, Time and Volume Interaction, Time and OpClo Interaction, echo=T, warning=F}
 df <- stock_data()
+t=1:nrow(df) # df has 100 rows. Creating a time vector with this for trending
 
-ksfit <- lm(sales ~ ad_tv + ad_online + discount, data = BSales)
-aic.wge(ksfit$residuals, p=0:8, q=0)  # AIC picks p=7
-# ARIMA(p,d,q) where p=7. The "X variables" are in columns 3 through 5.
-fit <- arima(BSales$sales, order=c(7,0,0), xreg=BSales[,3:5])
+# ccf(data.frame(df$volume, df$low, type="correlation")
+ksfit <- lm(low ~ t + volume + HiLo + OpClo, data=df)
+
+aic.wge(ksfit$residuals, p=0:10, q=0:5)  # AIC picks p=2, q=0 for ACGL
+
+# Volume and the differences between high and low, open and closed seem the most reasonable
+fit <- arima(df$low, order=c(2,1,0), xreg=cbind(t, df$volume, df$HiLo, df$OpClo)) # earlier analysis determined a difference is needed
 fit
 
 acf(fit$residuals)
 ltest <- ljung.wge(fit$resid)
-ltest$pval # p-value is very significant; reject the null - this is definitely not white noise
+ltest$pval # p-value is not significant; we cannot reject the null based on this test because the residuals are likely white noise
 
 # ASE for model with no lag and no trend (last 5)
-BSales2 <- BSales[1:95,] # make a training dataset that excludes the most recent 5 points that we want to predict (our test data, or "holdout")
-ksfit <- lm(sales ~ ad_tv + ad_online + discount, data=BSales2)
-aic.wge(ksfit$residuals,p=0:8, q=0)  # AIC picks p=7
-fit <- arima(BSales2$sales,order=c(7,0,0),xreg=cbind(BSales2$ad_tv, BSales2$ad_online, BSales2$discount))
+df2 <- df[1:(nrow(df)-5),] # make a training dataset that excludes the most recent 5 points that we want to predict (our test data, or "holdout")
+t2 <- 1:(nrow(df)-5)
+ksfit <- lm(df2$low ~ t2 + df2$volume + df2$HiLo + df2$OpClo + t2*df2$volume)
+aic.wge(ksfit$residuals,p=0:8, q=0:5)  # AIC picks p=2 q=0
+fit <- arima(df2$low, order=c(2,1,1), xreg=cbind(t2, df2$volume, df2$HiLo, df2$OpClo, t2*df2$volume, t2*df2$OpClo))
 fit
 
-preds <- predict(fit, newxreg=cbind(BSales$ad_tv[96:100],BSales$ad_online[96:100],BSales$discount[96:100]))
-ASE <- mean((BSales$sales[96:100] - preds$pred)^2)
-ASE
+preds <- predict(fit, newxreg=cbind(t[(nrow(df)-4):nrow(df)], df$volume[(nrow(df)-4):nrow(df)], df$HiLo[(nrow(df)-4):nrow(df)], df$OpClo[(nrow(df)-4):nrow(df)], t[(nrow(df)-4):nrow(df)]*df$volume[(nrow(df)-4):nrow(df)], t[(nrow(df)-4):nrow(df)]*df$OpClo[(nrow(df)-4):nrow(df)]))
+ASE <- mean((df$low[(nrow(df)-4):nrow(df)] - preds$pred)^2)
+ASE # 0.03452872
 
+plot(seq(1,nrow(df),1), df$low, type="b", xlab = "Trading Days", ylab = "Trade Prices", main = "Multiple Linear Regression with Trend and Volume Interaction", lwd=2)
+points(seq((nrow(df) - 4), nrow(df), 1), preds$pred, type="b", pch=15)
+```
+# Vector Autoregressive Modeling
+
+## Vector Autoregressive Modeling without Trend
+```{r Vector Autoregressive Modeling without Trend, echo=T, warning=F}
+df <- stock_data()
+plotts.sample.wge(df$volume, arlimits=T)
+ccf(df$volume,df$low, type="correlation")
+ccf(df$HiLo,df$low, type="correlation")
+ccf(df$OpClo,df$low, type="correlation")
+
+df2 <- df[1:(nrow(df)-5),]
+VARselect(df2$low, lag.max=6, type="const", season=NULL, exogen=data.frame(df2$volume, df2$HiLo, df2$OpClo)) # AIC picked p=1 with AIC -2.3235
+lsfit <- VAR(y=cbind(df2$low, df2$volume, df2$HiLo, df2$OpClo), p=1, type="const") # with p=5, this will estimate the coefficients for lag 5
+preds <- predict(lsfit, n.ahead=5)
+
+ASE <- mean((df$low[(nrow(df)-4):nrow(df)] - preds$fcst$y1[,1])^2)
+ASE # 0.2383062
+
+plot(seq(1,100,1), df$low[1:100], type = "l", xlim = c(0,100), xlab = "Trading Days", ylab = "Trade Prices", main = "Vector Autoregressive Modeling without Trend", lwd=2)
+lines(seq(96,100,1), preds$fcst$y1[,1], type = "l", col = "red", lwd=2)
+
+```
+## Vector Autoregressive Modeling with Trend
+```{r Vector Autoregressive Modeling with Trend, echo=T, warning=F}
+df <- stock_data()
+plotts.sample.wge(df$volume, arlimits=T)
+ccf(df$volume,df$low, type="correlation")
+ccf(df$HiLo,df$low, type="correlation")
+ccf(df$OpClo,df$low, type="correlation")
+
+df2 <- df[1:(nrow(df)-5),]
+t <- 1:100
+# Because of the white noise cross-correlation between all exogenous variables and the response variable, it's reasonable to expect only an AR(1) from VARselect. The model will quickly approximate the signal's mean without much sensitivity to change.
+VARselect(df2$low, lag.max=6, type="const", season=NULL, exogen=data.frame(t[96:100], df2$volume, df2$HiLo, df2$OpClo)) # AIC:  p=1 with AIC -2.3158
+lsfit <- VAR(y=cbind(df2$low, t[1:95], df2$volume, df2$HiLo, df2$OpClo), p=1, type="const") # with p=1, this will estimate the coefficients for lag 1
+preds <- predict(lsfit, n.ahead=5)
+
+ASE <- mean((df$low[(nrow(df)-4):nrow(df)] - preds$fcst$y1[,1])^2)
+ASE # 0.1132188
+
+plot(seq(1,100,1), df$low[1:100], type = "l",xlim = c(0,100), xlab = "Trading Days", ylab = "Trade Prices", main = "Vector Autoregressive Modeling with Trend", lwd=2)
+lines(seq(96,100,1), preds$fcst$y1[,1], type = "l", col = "red", lwd=2)
+
+```
+
+## Vector Autoregressive Modeling with Trend, Time and Volume Interaction
+```{r Vector Autoregressive Modeling with Trend, Time and Volume Interaction, echo=T, warning=F}
+df <- stock_data()
+plotts.sample.wge(df$volume, arlimits=T)
+ccf(df$volume,df$low, type="correlation")
+ccf(df$HiLo,df$low, type="correlation")
+ccf(df$OpClo,df$low, type="correlation")
+
+df2 <- df[1:(nrow(df)-5),]
+t <- 1:100
+# Because of the white noise cross-correlation between all exogenous variables and the response variable, it's reasonable to expect only an AR(1) from VARselect. The model will quickly approximate the signal's mean without much sensitivity to change.
+VARselect(df2$low, lag.max=6, type="const", season=NULL, exogen=data.frame(t[96:100], df2$volume, df2$HiLo, df2$OpClo, t[96:100]*df2$volume)) # AIC:  p=1 with AIC -2.3158
+lsfit <- VAR(y=cbind(df2$low, t[1:95], df2$volume, df2$HiLo, df2$OpClo, t[96:100]*df2$volume), p=1, type="const") # with p=1, this will estimate the coefficients for lag 1
+preds <- predict(lsfit, n.ahead=5)
+
+ASE <- mean((df$low[(nrow(df)-4):nrow(df)] - preds$fcst$y1[,1])^2)
+ASE #0.1087767 with time and volume interaction. 0.1132188 with only time and no interaction
+
+plot(seq(1,100,1), df$low[1:100], type = "l",xlim = c(0,100), xlab = "Trading Days", ylab = "Trade Prices", main = "Vector Autoregressive Modeling with Trend", lwd=2)
+lines(seq(96,100,1), preds$fcst$y1[,1], type = "l", col = "red", lwd=2)
+
+```
+
+## Vector Autoregressive Modeling with Trend, Time and Volume Interaction, Time and OpClo Interaction
+It is important to note that we did not identify an interaction between time and HiLo to benefit the model, but we did find that interaction with OpClo and time to be beneficial for reducing ASE.
+```{r Vector Autoregressive Modeling with Trend, Time and Volume Interaction, Time and OpClo Interaction, echo=T, warning=F}
+df <- stock_data()
+plotts.sample.wge(df$volume, arlimits=T)
+ccf(df$volume,df$low, type="correlation")
+ccf(df$HiLo,df$low, type="correlation")
+ccf(df$OpClo,df$low, type="correlation")
+
+df2 <- df[1:(nrow(df)-5),]
+t <- 1:100
+# Because of the white noise cross-correlation between all exogenous variables and the response variable, it's reasonable to expect only an AR(1) from VARselect. The model will quickly approximate the signal's mean without much sensitivity to change.
+VARselect(df2$low, lag.max=6, type="const", season=NULL, exogen=data.frame(t[96:100], df2$volume, df2$HiLo, df2$OpClo, t[96:100]*df2$volume, t[96:100]*df2$OpClo)) # AIC:  p=1 with AIC -2.3158
+lsfit <- VAR(y=cbind(df2$low, t[1:95], df2$volume, df2$HiLo, df2$OpClo, t[96:100]*df2$volume, t[96:100]*df2$OpClo), p=1, type="const") # with p=1, this will estimate the coefficients for lag 1
+preds <- predict(lsfit, n.ahead=5)
+
+ASE <- mean((df$low[(nrow(df)-4):nrow(df)] - preds$fcst$y1[,1])^2)
+ASE # 0.1010439
+
+plot(seq(1,100,1), df$low[1:100], type = "l",xlim = c(0,100), xlab = "Trading Days", ylab = "Trade Prices", main = "Vector Autoregressive Modeling with Trend", lwd=2)
+lines(seq(96,100,1), preds$fcst$y1[,1], type = "l", col = "red", lwd=2)
+```
+
+# Neural Network Models
+
+## Neural Network without Trend
+```{r Neural Network without Trend, echo=T, warning=F, eval=F}
+df <- stock_data()
+
+dfTrain <- df[1:(nrow(df)-5),]
+lowTest <- df$low[(nrow(df)-4):nrow(df)] # forecast actuals
+lowTrain <- ts(dfTrain$low) # a training set of the target minus the test forecast
+volumeFull <- ts(df$volume) # the full dataset (train + test) of xreg
+HiLoFull <- ts(df$HiLo) # the full dataset (train + test) of xreg
+OpCloFull <- ts(df$OpClo) # the full dataset (train + test) of xreg
+
+fit.mlp <- mlp(lowTrain, xreg=data.frame(volumeFull, HiLoFull, OpCloFull), reps = 15, comb = "mean", hd.auto.type="cv")
+fit.mlp
+plot(fit.mlp)
+
+fore.mlp <- forecast(fit.mlp, h=5, xreg=data.frame(volumeFull, HiLoFull, OpCloFull))
+plot(fore.mlp)
+ASE = mean((lowTest - fore.mlp$mean)^2)
+ASE # 0.1758194
+
+```
+
+## Neural Network with Trend
+```{r Neural Network with Trend, echo=T, warning=F, eval=F}
+df <- stock_data()
+t <- 1:nrow(df)
+
+dfTrain <- df[1:(nrow(df)-5),]
+lowTest <- df$low[(nrow(df)-4):nrow(df)] # forecast actuals
+lowTrain <- ts(dfTrain$low) # a training set of the target minus the test forecast
+volumeFull <- ts(df$volume) # the full dataset (train + test) of xreg
+HiLoFull <- ts(df$HiLo) # the full dataset (train + test) of xreg
+OpCloFull <- ts(df$OpClo) # the full dataset (train + test) of xreg
+
+fit.mlp <- mlp(lowTrain, xreg=data.frame(t, volumeFull, HiLoFull, OpCloFull), reps = 15, comb = "mean", hd.auto.type="cv")
+fit.mlp
+plot(fit.mlp)
+
+fore.mlp <- forecast(fit.mlp, h=5, xreg=data.frame(t, volumeFull, HiLoFull, OpCloFull))
+plot(fore.mlp)
+ASE = mean((lowTest - fore.mlp$mean)^2)
+ASE # 0.06421939
+
+```
+
+## Neural Network with Trend, Time and Volume Interaction
+```{r Neural Network with Trend, Time and Volume Interaction, echo=T, warning=F, eval=F}
+df <- stock_data()
+t <- 1:nrow(df)
+
+dfTrain <- df[1:(nrow(df)-5),]
+lowTest <- df$low[(nrow(df)-4):nrow(df)] # forecast actuals
+lowTrain <- ts(dfTrain$low) # a training set of the target minus the test forecast
+volumeFull <- ts(df$volume) # the full dataset (train + test) of xreg
+HiLoFull <- ts(df$HiLo) # the full dataset (train + test) of xreg
+OpCloFull <- ts(df$OpClo) # the full dataset (train + test) of xreg
+
+fit.mlp <- mlp(lowTrain, xreg=data.frame(t, volumeFull, HiLoFull, OpCloFull, t*volumeFull), reps = 15, comb = "mean", hd.auto.type="cv")
+fit.mlp
+plot(fit.mlp)
+
+fore.mlp <- forecast(fit.mlp, h=5, xreg=data.frame(t, volumeFull, HiLoFull, OpCloFull, t*volumeFull))
+plot(fore.mlp)
+ASE = mean((lowTest - fore.mlp$mean)^2)
+ASE # 0.05486796
+
+```
+
+
+## Neural Network with Trend, Time and Volume Interaction, Time and OpClo Interaction
+It is important to note that we did not identify an interaction between time and HiLo to benefit the model, but we did find that interaction with OpClo and time to be beneficial for reducing ASE.
+```{r Neural Network with Trend, Time and Volume Interaction, Time and OpClo Interaction, echo=T, warning=F, eval=F}
+df <- stock_data()
+t <- 1:nrow(df)
+
+dfTrain <- df[1:(nrow(df)-5),]
+lowTest <- df$low[(nrow(df)-4):nrow(df)] # forecast actuals
+lowTrain <- ts(dfTrain$low) # a training set of the target minus the test forecast
+volumeFull <- ts(df$volume) # the full dataset (train + test) of xreg
+HiLoFull <- ts(df$HiLo) # the full dataset (train + test) of xreg
+OpCloFull <- ts(df$OpClo) # the full dataset (train + test) of xreg
+
+fit.mlp <- mlp(lowTrain, xreg=data.frame(t, volumeFull, HiLoFull, OpCloFull, t*volumeFull, t*OpCloFull), reps = 15, comb = "mean", hd.auto.type="cv")
+fit.mlp
+plot(fit.mlp)
+
+fore.mlp <- forecast(fit.mlp, h=5, xreg=data.frame(t, volumeFull, HiLoFull, OpCloFull, t*volumeFull, t*OpCloFull))
+plot(fore.mlp)
+ASE = mean((lowTest - fore.mlp$mean)^2)
+ASE # 0.05682376
 ```
