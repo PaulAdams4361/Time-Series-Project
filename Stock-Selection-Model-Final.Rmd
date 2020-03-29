@@ -1,0 +1,338 @@
+  ---
+title: "Stock-Selection-Analysis"
+author: "Paul Adams & Jeff Nguyen"
+date: "3/17/2020"
+output: html_document
+---
+
+```{r setup, echo=F, warning=F}
+library(pacman)
+p_load(tswge, dplyr, kableExtra, sqldf, ggplot2, orcutt, tswgewrapped, readr, vars, RColorBrewer, plotly)
+```
+
+# Project Data Description
+
+In this project, we analyze 3,202 stock price and volume data time series traded on the NASDAQ exchange between May 30th and October
+30th, 2019. This date range was selected for its distance from significant biological and political disruption to the markets, which 
+can both introduce artificial seasonality and increased random variation into forecasts. Data was sourced as comma-separated values
+through API from AlphaVantage.
+
+Because of the time constraints involved with directly analyzing each stock, we developed a loop to process through each file, perform
+a linear model on each stock and where the slope for price is positive and greater than 0.04 and the price is within an affordable 
+range - between 5 and 50 dollars per share - we then select that stock to assess if the spectral density indicates any wandering 
+behavior based on a peak at zero and no additional peaks thereafter. Because of this wandering, the sample ACFs were also expected 
+to damp exponentially, indicative of non-stationary behavior. This method allowed us to identify ideal stocks for signal-plus-noise 
+modeling with postive, profitable trending. This method provided us 7 stocks we deemed useful, from which we selected one. The one we 
+chose appeared to provide the most stationary noise around the signal.
+
+This method uses linear regression to identify a profitable signal-plus-noise model fit. Cochran-orcutt is needed after selection of 
+stocks.
+
+# Data Selection
+```{r Stock Selection, echo=T, warning=F, eval=F, fig.cap="Stock Selection"}
+plotts.sample.wge(df$low, trunc=25, arlimits=T)
+files = list.files(path='../Time-Series-Stocks', pattern='*.csv')
+
+for(file in files){
+  actualFile <- paste0('../Time-Series-Stocks/',file)
+  
+  df <- read.csv(actualFile, header=T, strip.white=T)
+
+  # run linear regression to get the signal (average).
+  t = seq(1, nrow(df),1)
+  fit = lm(df$low~t)
+  
+  # get the frequency values from the spectral density in the Parzen Window (we want them to wander without season; just trend)
+  dbz <- plotts.sample.wge(df$low)[4] # plotting sample plots to see the stocks while they process
+
+  # if the linear coefficient (deterministic signal) for the price is positive and the price is between 5 and 50 (affordable):
+  if(fit$coefficients[2] > 0.04 && df$low[nrow(df)] > 5 && df$low[nrow(df)] < 50){
+    for(i in 1:(length(dbz$dbz)-1)){
+      # if the realization is wandering (based on spectral density):
+      if(dbz$dbz[i] > dbz$dbz[i+1]){
+        write.table(df$symbol, './models_aic_less_than_0.csv', append=T)
+      }
+    }
+  }
+}
+
+```
+
+# This is the stock we discovered. Candlestick chart for fun.
+```{r Candlesticks for Visual Fun, echo=T, warning=F, fig.cap="Candlestick Chart for ACGL"}
+urlfile = "https://raw.githubusercontent.com/PaulAdams4361/Time-Series-Project/master/NASDAQ_Daily_ACGL.csv"
+df <- read_csv(url(urlfile))
+
+df <- data.frame(Date=df$times, coredata(df[,2:5]))
+
+fig <- df %>% plot_ly(x = ~Date, type="candlestick",
+          open = ~open, close = ~close,
+          high = ~high, low = ~low) 
+fig <- fig %>% layout(title = "Candlestick Chart for ACGL")
+
+fig
+
+```
+
+```{r Custom DataFrame, echo=T, warning=F, fig.cap="Signal-Plus-Noise Model"}
+urlfile="https://raw.githubusercontent.com/PaulAdams4361/Time-Series-Project/master/NASDAQ_Daily_ACGL.csv"
+df <- read_csv(url(urlfile))
+
+HiLo <- df$high - df$low
+HiClo <- df$high - df$close
+OpHi <- df$open - df$high
+OpClo <- df$open - df$close
+OpLo <- df$open - df$low
+CloLo <- df$close - df$low
+
+df <- data.frame(cbind(df, HiLo, HiClo, OpHi, OpClo, OpLo, CloLo))
+head(df)
+```
+# Signal-Plus-Noise Model
+
+In this Signal-Plus-Noise model, we perform a hypothesis test on the linear trend to identify using OLS if the trend is possibly deterministic. After positive confirmation from OLS, we then tested this with the Cochrane-Orcutt AR(1) based hypothesis test, which accounts for serial correlation in determining slope significance. This test also confirmed the signal is a deterministic trend.
+
+Next, we removed the residuals from the trend line and built a model for this data. We then tested the residuals for white noise variance using the Ljung-Box test, which indicated there is not enough evidence to consider the residuals to be more than white noise. Because of the stationarity of the residuals, we were able to estimate a model using the linear slope and adding to it the variation of the residuals.
+
+Forecasting error was measured in terms of Average Squared Error using the last trading week's data points, for which there were five. The ASE was 0.1654078.
+
+```{r Signal-Plus-Noise Model, echo=T, warning=F, fig.cap="Signal-Plus-Noise Model"}
+urlfile="https://raw.githubusercontent.com/PaulAdams4361/Time-Series-Project/master/NASDAQ_Daily_ACGL.csv"
+df <- read_csv(url(urlfile))
+#df <- read.csv('./NASDAQ_Daily_ACGL.csv', header=T, strip.white=F)
+
+# take a sample of the data, analyze
+# plotts.sample.wge(df$low, arlimits=T)
+
+####################
+# Signal-Plus-Noise
+####################
+x = df$low
+n = length(x)
+t = 1:n
+fit = lm(x ~ t)
+summary(fit) # there appears to be deterministic trend based on OLS; the p-value is significant so reject the null that it is not
+# deterministic. The null argues that any present trend is random that will eventually traverse such a pattern that the realization 
+# will continue to approximate around the mean. 
+
+# Because OLS is not robust to non-stationarity, we apply the Cochrane-Orcutt test to also test the beta coefficient slope of time
+# using an aproach that fits an AR(1) model to the residuals:
+cfit = cochrane.orcutt(fit) # to confirm with chochrane-orcutt
+summary(cfit) # Cochran-Orcutt also provides a significant p-value. Based on this, we assume the slope is not equal to zero and
+# therefore, there is deterministic that justifies fitting a signal-plus-noise model instead of an ARMA(p,q). However, ARMA(p,q)
+# will be fitted later for comparison.
+
+#x.z = x - fit$coefficients[1] - fit$coefficients[2]*t # derive residuals
+x.z = fit$residuals # derive residuals (from the regression line)
+ar.z = aic.wge(x.z, p=0:6, type="aic") # find a model to use for approximating the residuals. NOTE: (sigmaHAT_a)^2 = 0.1177843
+# ar.z$p is the order p (aic selects p=2 where q=0, as does the bic)
+
+# Transform the stock prices by the autoregressive coefficients of the fitted residuals from the linear regression model. 
+# Remove phi from residuals to remove serial correlation and allow us to model
+y.trans = artrans.wge(df$low, phi.tr=ar.z$phi)
+# also, transform the predictor variable (time) by the autogregressive coefficeints of the fitted residuals as well
+t.trans  = artrans.wge(t, phi.tr=ar.z$phi)
+# Finally, regress the newly transformed stock prices (Y-HAT_t) on the transformed time (T-HAT_t)using ordinary least squares
+fitco = lm(y.trans ~ t.trans)
+summary(fitco) # check to see if the transformed beta coefficient for the slope is still significant
+
+# Evaluating the residuals after Cochrane-Orcutt:
+plotts.wge(fitco$residuals)
+acf(fitco$residuals) # residuals appear to be white noise
+ljung.wge(fitco$residuals) # there is not enough evidence based on the ljung-box test to reject the null hypothesis. Therefore, 
+# we cannot assume that the residuals are not white noise.
+
+# Final Signal-Plus-Noise Model: X_t = 34.855438 + 0.072922*t + Z_t, (sigmaHAT_a)^2 = 0.1177843 summary(fit = lm(x ~ t))
+# creates the coefficients
+ar.z$phi
+# (1 - 1.0533533*B + 0.3193699*B^2)*Z_t = a__t. ar.z$phi from AR(2) creates the coeffients and (sigmaHAT_a)^2 = 0.1177843
+
+# BUT, TO REITERATE: Final Signal-Plus-Noise Model is X_t = 34.855438 + 0.072922*t + Z_t, (sigmaHAT_a)^2 = 0.1177843
+est_mod = gen.sigplusnoise.wge(100, b0=34.855438, b1 = 0.072922, phi=ar.z$phi, vara=0.1177843)
+plotts.sample.wge(est_mod)
+plotts.sample.wge(df$low) # the estimated model (above) matches to the actual model (here) on both sample ACFs and sample spectral
+# density as well as on partial ACF (below):
+pacf(est_mod)
+pacf(df$low)
+
+#########################################################################################################
+############### Confirmation for repeated model visualization of ACF and Spectral Density ###############
+#########################################################################################################
+for( i in 1: 5)
+{
+   SpecDen2 = parzen.wge(gen.sigplusnoise.wge(100, b0=34.855438, b1 = 0.072922, phi=ar.z$phi, vara=0.1177843), plot = T)
+   lines(SpecDen2$freq,SpecDen2$pzgram, lwd = 2, col = "red")
+}
+
+for( i in 1: 5)
+{
+   ACF2 = acf(gen.sigplusnoise.wge(100, b0=34.855438, b1 = 0.072922, phi=ar.z$phi, vara=0.1177843), plot = T)
+   lines(ACF2$lag ,ACF2$acf, lwd = 2, col = "red")
+}
+#########################################################################################################
+#########################################################################################################
+#########################################################################################################
+
+signoise.forecast <- fore.sigplusnoise.wge(df$low, max.p=2, n.ahead=5, limits=T, lastn=T, plot=T)
+SIGNOISE_ASE = mean((df$low[(nrow(df)-5+1):nrow(df)] - signoise.forecast$f)^2)
+SIGNOISE_ASE # 0.133713
+```
+
+# ARIMA(p,d,q) Model
+
+In the ARIMA model, we selected a forecast horizon of five trading days because this timeframe completes a full business week. Models
+can be fully re-developed on non-trading days. However, unless there are 2 unit roots, ARIMA will not forecast a trend to continue.
+Therefore, the forecast converge back toward the mean.
+
+visual inspection of the spectral density estimate in the Parzen Window and the sample autocorrelations, it is apparent the data are
+wandering. Therefore, we decided to difference the data to add stationarity into the model.
+```{r ARIMA(p,d,q) Model, echo=T, warning=F, fig.cap="ARIMA(p,d,q) Model"}
+urlfile = "https://raw.githubusercontent.com/PaulAdams4361/Time-Series-Project/master/NASDAQ_Daily_ACGL.csv"
+df<-read_csv(url(urlfile))
+
+# take a sample of the data, analyze
+# plotts.sample.wge(df$low, arlimits=T)
+
+###########################################################
+########################################################### ARMA/ARIMA
+###########################################################
+
+factor.wge(df$low) # many unit roots in the data
+aic5.wge(df$low, type="aic")
+est.arma.wge(df$low, p=5, q=0) # the factor table for df$low provides one (1-B) represented as (1-0.9956B), a close-enough 
+# approximation. Therefore, we difference the data once. Preliminary evidence suggesting differencing is useful is based 
+# on the specified wandering and the damping sample autocorrelations. When using an overfit table, there was a factor close
+# to (1-b)^2, but it was not very significant (third most significant using estimated_arma <- est.arma.wge(dftrans, p=15, q=1))
+# so we decided to only use a first difference.
+
+dftrans <- artrans.wge(df$low, phi.tr=1)
+aic5.wge(dftrans, type="aic") # aic = -2.001944
+estimated_arma <- est.arma.wge(dftrans, p=5, q=0)
+estimated_arma$phi
+#estimated_arma <- est.arma.wge(dftrans, p=15, q=1)
+ljung.wge(estimated_arma$res, p=5, q=0) # Indication there is no serial correlation in the residuals of the model; this is a good fit.
+
+estimated_arma$avar # 0.1240151
+mean(df$low) # 38.53802
+# (1-B)(1-0.12269667B+0.11827203B^2+0.14543411B^3+0.25874556B^4-0.02916165B^5)*(X_t + 38.53802) = a_t, (sigma-hat_a)^2 = 0.1240151
+# (1-1.12269667B+0.00442464B^2+0.26370614B^3+0.11331145B^4-0.28790721B^5+0.02916165B^6)*(X_t + 38.53802) = a_t, (sigma-hat_a)^2 = 0.1240151
+
+######
+###### Plotting residuals
+
+# the residuals of the model do not appear correlated. The sample autocorrelation and partial autocorrelation plots indicate 
+# stationarity across all lags with all lags measured within the 5% limits
+plotts.sample.wge(estimated_arma$res)
+par(mfrow=c(3,1))
+plot(estimated_arma$res, ylab="ARIMA Residuals", xlab="Time", type="l", main = "ARIMA(5,1,1) Model Residuals over Time")
+abline(h=mean(estimated_arma$res), col="blue")
+acf(estimated_arma$res) # this seems to be white noise; all lags are within the 5% limits
+pacf(estimated_arma$res) # this seems to be white noise; all lags are within the 5% limits
+aic5.wge(estimted_arma$res, type="aic") # White noise is the top model selected for the residuals, by AIC (ARMA(0,0))
+######
+######
+
+######
+###### Compare estimated model to differenced data
+
+# We generated a model of 99 data points using the ARMA(5,1) identified by aic5 with a variance equal to that estimated from the
+# differenced data, which is 0.1172604 (select to see origin highlighted above)
+est_mod <- gen.aruma.wge(99, phi=estimated_arma$phi, theta=estimated_arma$theta, d=1, vara=estimated_arma$avar, sn=40)
+plotts.sample.wge(est_mod, arlimits=T) # estimated model
+plotts.sample.wge(df$low, arlimits=T) # estimated model
+
+
+#########################################################################################################
+############### Confirmation for repeated model visualization of ACF and Spectral Density ###############
+#########################################################################################################
+for( i in 1:5)
+{
+   SpecDen2 = parzen.wge(gen.aruma.wge(99, phi=estimated_arma$phi, theta=estimated_arma$theta, d=1, vara=estimated_arma$avar), plot = T)
+   lines(SpecDen2$freq,SpecDen2$pzgram, lwd = 2, col = "red")
+}
+
+for( i in 1:5)
+{
+   ACF2 = acf(gen.aruma.wge(99, phi=estimated_arma$phi, theta=estimated_arma$theta, d=1, vara=estimated_arma$avar), plot = T)
+   lines(ACF2$lag ,ACF2$acf, lwd = 2, col = "red")
+}
+#########################################################################################################
+#########################################################################################################
+#########################################################################################################
+
+# after comparing sample spectral density and ACF plots, we comapred the AIC-estimated models to compare identified models
+aic5.wge(dftrans)
+aic5.wge(est_mod2) # ARMA(5,0) and ARMA(5,1) are top in both models, indicating a potentially useful model..
+
+######
+######
+
+######
+###### Forecast and Measure Average Squared Errors (ASE)
+
+# Model Forecast and ASE
+# Forecasting the differenced data using the parameters estimated from it (we do not apply a d=1)
+nonseasonal.forecast <- fore.aruma.wge(df$low, phi=estimated_arma$phi, theta=estimated_arma$theta, d=1,n.ahead=5, lastn=T)
+ARIMA_ASE = mean((df$low[(nrow(df)-5+1):nrow(df)] - nonseasonal.forecast$f)^2)
+ARIMA_ASE# 0.2026529
+######
+######
+```
+
+```{r Multiple Linear Regression Time Series, echo=T, warning=F, eval=F}
+urlfile = "https://raw.githubusercontent.com/PaulAdams4361/Time-Series-Project/master/NASDAQ_Daily_ACGL.csv"
+df<-read_csv(url(urlfile))
+
+t=1:nrow(df) # df has 100 rows. Creating a time vector with this for trending
+ccf(df$volume, df$low, type="both", plot=T)
+ksfit <- lm(low ~ volume, data=df)
+
+aic.wge(ksfit$residuals, p=0:8, q=0)  # AIC picks p=5 for ACGL
+# ARIMA(p,d,q) where p=7. The exogenous variable is volume
+fit <- arima(df$low, order=c(5,0,0), xreg=df[,'volume'])
+fit
+
+acf(fit$residuals)
+ltest <- ljung.wge(fit$resid)
+ltest$pval # p-value is very significant; reject the null - this is definitely not white noise
+
+# ASE for model with no lag and no trend (last 5)
+BSales2 <- BSales[1:95,] # make a training dataset that excludes the most recent 5 points that we want to predict (our test data, or "holdout")
+ksfit <- lm(sales ~ ad_tv + ad_online + discount, data=BSales2)
+aic.wge(ksfit$residuals,p=0:8, q=0)  # AIC picks p=7
+fit <- arima(BSales2$sales,order=c(7,0,0),xreg=cbind(BSales2$ad_tv, BSales2$ad_online, BSales2$discount))
+fit
+
+preds <- predict(fit, newxreg=cbind(BSales$ad_tv[96:100],BSales$ad_online[96:100],BSales$discount[96:100]))
+ASE1 <- mean((BSales$sales[96:100] - preds$pred)^2)
+ASE1
+
+```
+
+```{r Vector Autoregressive Modeling, echo=T, warning=F, eval=F}
+urlfile = "https://raw.githubusercontent.com/PaulAdams4361/Time-Series-Project/master/NASDAQ_Daily_ACGL.csv"
+df<-read_csv(url(urlfile))
+
+ksfit <- lm(sales ~ ad_tv + ad_online + discount, data = BSales)
+aic.wge(ksfit$residuals, p=0:8, q=0)  # AIC picks p=7
+# ARIMA(p,d,q) where p=7. The "X variables" are in columns 3 through 5.
+fit <- arima(BSales$sales, order=c(7,0,0), xreg=BSales[,3:5])
+fit
+
+acf(fit$residuals)
+ltest <- ljung.wge(fit$resid)
+ltest$pval # p-value is very significant; reject the null - this is definitely not white noise
+
+# ASE for model with no lag and no trend (last 5)
+BSales2 <- BSales[1:95,] # make a training dataset that excludes the most recent 5 points that we want to predict (our test data, or "holdout")
+ksfit <- lm(sales ~ ad_tv + ad_online + discount, data=BSales2)
+aic.wge(ksfit$residuals,p=0:8, q=0)  # AIC picks p=7
+fit <- arima(BSales2$sales,order=c(7,0,0),xreg=cbind(BSales2$ad_tv, BSales2$ad_online, BSales2$discount))
+fit
+
+preds <- predict(fit, newxreg=cbind(BSales$ad_tv[96:100],BSales$ad_online[96:100],BSales$discount[96:100]))
+ASE1 <- mean((BSales$sales[96:100] - preds$pred)^2)
+ASE1
+
+
+```
