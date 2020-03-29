@@ -75,18 +75,22 @@ fig
 ```
 
 ```{r Custom DataFrame, echo=T, warning=F, fig.cap="Signal-Plus-Noise Model"}
-urlfile="https://raw.githubusercontent.com/PaulAdams4361/Time-Series-Project/master/NASDAQ_Daily_ACGL.csv"
-df <- read_csv(url(urlfile))
 
-HiLo <- df$high - df$low
-HiClo <- df$high - df$close
-OpHi <- df$open - df$high
-OpClo <- df$open - df$close
-OpLo <- df$open - df$low
-CloLo <- df$close - df$low
+stock_data <- function(x){
+  urlfile="https://raw.githubusercontent.com/PaulAdams4361/Time-Series-Project/master/NASDAQ_Daily_ACGL.csv"
+  df <- read_csv(url(urlfile))
+  HiLo <- df$high - df$low
+  HiClo <- df$high - df$close
+  OpHi <- df$open - df$high
+  OpClo <- df$open - df$close
+  OpLo <- df$open - df$low
+  CloLo <- df$close - df$low
+  df <- data.frame(cbind(df, HiLo, HiClo, OpHi, OpClo, OpLo, CloLo))
+  return(df)
+}
 
-df <- data.frame(cbind(df, HiLo, HiClo, OpHi, OpClo, OpLo, CloLo))
-head(df)
+df <- stock_data()
+# head(df)
 ```
 # Signal-Plus-Noise Model
 
@@ -97,9 +101,7 @@ Next, we removed the residuals from the trend line and built a model for this da
 Forecasting error was measured in terms of Average Squared Error using the last trading week's data points, for which there were five. The ASE was 0.1654078.
 
 ```{r Signal-Plus-Noise Model, echo=T, warning=F, fig.cap="Signal-Plus-Noise Model"}
-urlfile="https://raw.githubusercontent.com/PaulAdams4361/Time-Series-Project/master/NASDAQ_Daily_ACGL.csv"
-df <- read_csv(url(urlfile))
-#df <- read.csv('./NASDAQ_Daily_ACGL.csv', header=T, strip.white=F)
+df <- stock_data()
 
 # take a sample of the data, analyze
 # plotts.sample.wge(df$low, arlimits=T)
@@ -187,8 +189,7 @@ Therefore, the forecast converge back toward the mean.
 visual inspection of the spectral density estimate in the Parzen Window and the sample autocorrelations, it is apparent the data are
 wandering. Therefore, we decided to difference the data to add stationarity into the model.
 ```{r ARIMA(p,d,q) Model, echo=T, warning=F, fig.cap="ARIMA(p,d,q) Model"}
-urlfile = "https://raw.githubusercontent.com/PaulAdams4361/Time-Series-Project/master/NASDAQ_Daily_ACGL.csv"
-df<-read_csv(url(urlfile))
+df <- stock_data()
 
 # take a sample of the data, analyze
 # plotts.sample.wge(df$low, arlimits=T)
@@ -280,11 +281,11 @@ ARIMA_ASE# 0.2026529
 ```
 
 ```{r Multiple Linear Regression Time Series, echo=T, warning=F, eval=F}
-urlfile = "https://raw.githubusercontent.com/PaulAdams4361/Time-Series-Project/master/NASDAQ_Daily_ACGL.csv"
-df<-read_csv(url(urlfile))
+df <- stock_data()
 
 t=1:nrow(df) # df has 100 rows. Creating a time vector with this for trending
-ccf(df$volume, df$low, type="both", plot=T)
+
+ccf(data.frame(df$volume, df$low, type="correlation")
 ksfit <- lm(low ~ volume, data=df)
 
 aic.wge(ksfit$residuals, p=0:8, q=0)  # AIC picks p=5 for ACGL
@@ -310,8 +311,7 @@ ASE1
 ```
 
 ```{r Vector Autoregressive Modeling, echo=T, warning=F, eval=F}
-urlfile = "https://raw.githubusercontent.com/PaulAdams4361/Time-Series-Project/master/NASDAQ_Daily_ACGL.csv"
-df<-read_csv(url(urlfile))
+df <- stock_data()
 
 ksfit <- lm(sales ~ ad_tv + ad_online + discount, data = BSales)
 aic.wge(ksfit$residuals, p=0:8, q=0)  # AIC picks p=7
