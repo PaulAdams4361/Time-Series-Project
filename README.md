@@ -7,14 +7,7 @@ In this project, we analyze 3,202 stock price and volume data time series traded
 ### Analysis
 We applied automated, iterative pre-processing to analyze all stocks and provide candidate models for direct analysis. Through this analysis, we identified one stock and modeled its time series using ARIMA, Neural Networks using Multi-Layered Perceptrons, Signal-Plus-Noise, Vector Autoregressive (VAR), and composite ensemble models. Forecasting accuracy was assessed using the Average Squared Error (ASE).
 
-<div class="center-me">
-    <img src='./project_files/images/Candlestick_Plot.png' class="border"/>
-</div>
 
-<table align="right">
-    <tr>
-        <td>
-            <img src="./project_files/images/Candlestick_Plot.png" class="border" />
-        </td>
-    </tr>
-</table>
+<p align="center"> 
+<img src="./project_files/images/Candlestick_Plot.png" class="border">
+</p>
