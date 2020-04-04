@@ -5,4 +5,4 @@ In this project, we analyze 3,202 stock price and volume data time series traded
 
 Models applied and evaluted include Signal-Plus-Noise, ARIMA, Vector Autoregressive (VAR), Neural Networks using Multi-Layered Perceptrons, and composite ensemble models. Models are compared using the Average Squared Error (ASE).
 
-!/[Candlestick Plot for ACGL](https://github.com/PaulAdams4361/Time-Series-Project/project_files/Candlestick_Plot.png)
+!/[Candlestick Plot for ACGL](./project_files/Candlestick_Plot.png)
