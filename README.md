@@ -9,7 +9,7 @@ We applied automated, iterative pre-processing to analyze all stocks and provide
 
 
 <table align="center"><tr><td>
-  <img src="./project_files/images/Candlestick_Plot.png" style="border:15px solid black" />
+  <img src="./project_files/images/Candlestick_Plot.png"/>
 </td></tr></table>
 
 <table class="tableOne">
