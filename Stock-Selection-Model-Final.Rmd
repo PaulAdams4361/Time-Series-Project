@@ -616,3 +616,62 @@ plot(fore.mlp)
 ASE = mean((lowTest - fore.mlp$mean)^2)
 ASE # 0.05711815
 ```
+
+``` {r rolling ASE}
+#MLP
+#Rolling ASE
+for i in (0:(num_batches-1))
+{
+  fit.mlp <- mlp(ts(ts[i:(i+(batch_size-1))]), xreg=data.frame(volumeFull[i:(i+(batch_size-1))], HiLoFull[i:(i+(batch_size-1))], OpCloFull[i:(i+(batch_size-1))]), reps = 15, comb = "mean", hd.auto.type="cv")
+  fore.mlp <- forecast(fit.mlp, h=5, xreg=data.frame(volumeFull, HiLoFull, OpCloFull))
+  ASEs[i+1] = mean((ts[(length(ts) - 4):length(ts)] - fore.mlp$mean)^2)
+  start = start+1
+}
+ASEs
+mean(ASEs)
+
+
+#Signal + Noise
+df2 <- df[1:(nrow(df)-5),]
+ts = df$low
+t2 = 1:95
+batch_size = 91
+start = 1
+num_batches = length(ts)-batch_size+1
+ASEs = numeric(num_batches)
+
+for (i in 0: (num_batches-1))
+{
+  fit <- arima(df2$low, order=c(2,1,1), xreg=cbind(t2, df2$volume, df2$HiLo, df2$OpClo, t2*df2$volume, t2*df2$OpClo))
+  preds <- predict(fit, newxreg=cbind(t[(nrow(df)-4):nrow(df)], df$volume[(nrow(df)-4):nrow(df)], df$HiLo[(nrow(df)-4):nrow(df)], 
+                                      df$OpClo[(nrow(df)-4):nrow(df)], t[(nrow(df)-4):nrow(df)]*df$volume[(nrow(df)-4):nrow(df)],
+                                      t[(nrow(df)-4):nrow(df)]*df$OpClo[(nrow(df)-4):nrow(df)]))
+
+  ASEs[i+1] = mean((df$low[(nrow(df)-4):nrow(df)] - preds$pred)^2)
+}
+ASEs
+mean(ASEs)
+
+
+#ARIMA
+ts = df$low
+batch_size = 91
+start = 1
+num_batches = length(ts)-batch_size+1
+ASEs = numeric(num_batches)
+
+for (i in 0: (num_batches-1))
+{
+  forecasts = fore.aruma.wge(ts[start:(batch_size+i)], phi = c(0.1227,-.1183,.1454,-.2587,.029), d = 1, n.ahead = 5, lastn = TRUE, limits = FALSE)
+  ASEs[i+1] = mean((ts[(length(ts) - 4):length(ts)] - forecasts$f)^2)
+}
+ASEs
+mean(ASEs)
+
+
+#Ensemble
+mlp_pred = as.numeric(fore.mlp$mean)
+signoise = as.numeric(preds$pred)
+en_pred = (mlp_pred + signoise)/2
+mean((ts[(length(ts) - 4):length(ts)] - en_pred)^2)
+```
