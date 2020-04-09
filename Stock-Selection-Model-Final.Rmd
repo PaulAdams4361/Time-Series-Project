@@ -531,27 +531,6 @@ trainingSize = 95
 horizon = 5
 ASEHolder_2 = numeric()
 
-for( i in 1:5)
-{
-  
-  fit.mlp <- mlp(ts(df$low[i:(i + (trainingSize - 1))]), xreg=data.frame(t[i:(i + (trainingSize - 1))], df$volume[i:(i + (trainingSize - 1))], df$HiLo[i:(i + (trainingSize - 1))], df$OpClo[i:(i + (trainingSize - 1))], ((df$OpClo[i:(i + (trainingSize - 1))]) * t[i:(i + (trainingSize - 1))])), type="const") # AIC picked p=1 with AIC -2.3235
-}
-  fore.mlp <- forecast(fit.mlp, h=5, xreg=data.frame(volumeFull, HiLoFull, OpCloFull))
-  
-  lsfit <- VAR(y=cbind(df$low[i:(i + (trainingSize - 1))], exogen = data.frame(t[1:91], df$volume[i:(i + (trainingSize - 1))], df$HiLo[i:(i + (trainingSize - 1))], df$OpClo[i:(i + (trainingSize - 1))], ((df$volume[i:(i + (trainingSize - 1))]) * t[1:91])), ((df$OpClo[i:(i + (trainingSize - 1))]) * t[1:91])), reps = 15, comb = "mean", hd.auto.type="cv")
-  
-  VARselect(, lag.max=6, season=NULL, exogen=, p=1, type="const")
-  preds <- predict(lsfit, n.ahead=5)
-
-  ASE_2 = mean((df$low[(trainingSize + i):(trainingSize + i + (horizon) - 1)] - preds$fcst$df2.low.i..i....trainingSize...1...[1])^2)
-  
-  ASEHolder_2[i] = ASE_2
-  
-}
-
-WindowedASE_mod2 = mean(ASEHolder_2)
-WindowedASE_mod2 # 0.2288478
-
 ```
 
 ## Neural Network with Trend
