@@ -148,6 +148,7 @@ summary(fitco) # check to see if the transformed beta coefficient for the slope 
 # Evaluating the residuals after Cochrane-Orcutt:
 plotts.wge(fitco$residuals)
 acf(fitco$residuals) # residuals appear to be white noise
+
 ljung.wge(fitco$residuals) # there is not enough evidence based on the ljung-box test to reject the null hypothesis. Therefore, 
 # we cannot assume that the residuals are not white noise.
 
@@ -185,6 +186,8 @@ for( i in 1: 5)
 signoise.forecast <- fore.sigplusnoise.wge(df$low, max.p=2, n.ahead=5, limits=T, lastn=T, plot=T)
 SIGNOISE_ASE = mean((df$low[(nrow(df)-5+1):nrow(df)] - signoise.forecast$f)^2)
 SIGNOISE_ASE # 0.133713
+
+
 ```
 
 # ARIMA(p,d,q) Model
@@ -250,9 +253,10 @@ plotts.sample.wge(est_mod, arlimits=T) # estimated model
 plotts.sample.wge(df$low, arlimits=T) # estimated model
 
 
-#########################################################################################################
-############### Confirmation for repeated model visualization of ACF and Spectral Density ###############
-#########################################################################################################
+#################################################################################################################################################
+############### Confirmation that repeated estimated model visualizations of ACF and Spectral Density match that of original data ###############
+#################################################################################################################################################
+
 for( i in 1:5)
 {
    SpecDen2 = parzen.wge(gen.aruma.wge(99, phi=estimated_arma$phi, theta=estimated_arma$theta, d=1, vara=estimated_arma$avar), plot = T)
@@ -264,6 +268,7 @@ for( i in 1:5)
    ACF2 = acf(gen.aruma.wge(99, phi=estimated_arma$phi, theta=estimated_arma$theta, d=1, vara=estimated_arma$avar), plot = T)
    lines(ACF2$lag ,ACF2$acf, lwd = 2, col = "red")
 }
+
 #########################################################################################################
 #########################################################################################################
 #########################################################################################################
@@ -288,125 +293,18 @@ ARIMA_ASE# 0.2026529
 ```
 
 # Multivariate Regression Time Series Modeling
-## Multivariate Regression Time Series
-```{r Multivariate Regression Time Series without Time, echo=T, warning=F}
-df <- stock_data()
-# First Variable has the "time shift"
-ccf(df$volume,df$low, type="correlation") # nothing too significant to warrant lagging volume
-ccf(df$HiLo,df$low, type="correlation") # no strong cross-correlation
-ccf(df$OpClo,df$low, type="correlation") # Open-Close does not require lagging.
+Following the univariate modeling of this time series, we decided to enhance our model with multivariate factors, both additive and multiplicative. Furthermore, based on the candlestick plot we created for exploratory data analysis, we were interested in exploring the relationship of the ranges of open to close and high to low prices as related to the low price. Therefore, we engineered two features to capture these two ranges for each data point. Additionally, we added an individual time component.
 
-ksfit <- lm(low ~ volume + HiLo + OpClo, data=df)
+Initially, we performed analysis on lag behavior and concluded there is not enough significant evidence in the correlation structures between our variables to indicate lagging of variables should be provided. From this point we continued our analysis.
 
-aic.wge(ksfit$residuals, p=0:10, q=0:5)  # AIC picks p=5 for ACGL; AIC picks p=2, q=1 for ACGL
-# ARIMA(p,d,q) where p=7. The exogenous variable is volume
-# fit <- arima(df$low, order=c(5,0,0), xreg=df[,'volume'])
+Note that while not included in our presentation, and performed only as an aside, we performed multivariate regression with the same variables to gain insight into the improvements in forecasting accuracy gained from developing the Vector Autoregressive and Neural Network with Multi-Layered Perceptrons provides. As expected, the improvements were profound. For comparison, our best Neural Network forecasting scored an Average Squared Error of 0.05711815 whereas our best Vector Autoregressive model scored 0.1703138 and our best Multivariate Regression model scored 
 
-# Volume and the differences between high and low, open and closed seem the most reasonable
-fit <- arima(df$low, order=c(2,0,1), xreg=cbind(df$volume, df$HiLo, df$OpClo))
-fit
 
-acf(fit$residuals)
-ltest <- ljung.wge(fit$resid)
-ltest$pval # p-value is not significant; we cannot reject the null based on this test because the residuals are likely white noise
-
-# ASE for model with no lag and no trend (last 5)
-df2 <- df[1:(nrow(df)-5),] # make a training dataset that excludes the most recent 5 points that we want to predict (our test data, or "holdout")
-ksfit <- lm(low ~ volume + HiLo + OpClo, data=df2)
-aic.wge(ksfit$residuals,p=0:8, q=0:5)  # AIC picks p=5 q=1, AIC picks p=7
-fit <- arima(df2$low, order=c(5,0,1), xreg=cbind(df2$volume, df2$HiLo, df2$OpClo))
-fit
-
-preds <- predict(fit, newxreg=cbind(df$volume[(nrow(df)-4):nrow(df)], df$HiLo[(nrow(df)-4):nrow(df)], df$OpClo[(nrow(df)-4):nrow(df)]))
-ASE <- mean((df$low[(nrow(df)-4):nrow(df)] - preds$pred)^2)
-ASE # 0.1251275
-
-plot(seq(1,nrow(df),1), df$low, type="b", xlab = "Trading Days", ylab = "Trade Prices", main = "Multiple Linear Regression without Trend", lwd=2)
-points(seq((nrow(df) - 4), nrow(df), 1), preds$pred, type="b", pch=15, lwd=2)
-
-```
-
-## Multivariate Regression with Trend, Time and Volume Interaction
-```{r Multivariate Regression with Trend, Time and Volume Interaction, echo=T, warning=F}
-df <- stock_data()
-# First Variable has the "time shift"
-ccf(df$volume,df$low, type="correlation") # nothing too significant to warrant lagging volume
-ccf(df$HiLo,df$low, type="correlation") # no strong cross-correlation
-ccf(df$OpClo,df$low, type="correlation") # Open-Close does not require lagging.
-
-t=1:nrow(df) # df has 100 rows. Creating a time vector with this for trending
-
-# ccf(data.frame(df$volume, df$low, type="correlation")
-ksfit <- lm(low ~ t + volume + HiLo + OpClo, data=df)
-
-aic.wge(ksfit$residuals, p=0:10, q=0:5)  # AIC picks p=2, q=0 for ACGL
-
-# Volume and the differences between high and low, open and closed seem the most reasonable
-fit <- arima(df$low, order=c(2,1,0), xreg=cbind(t, df$volume, df$HiLo, df$OpClo)) # earlier analysis determined a difference is needed
-fit
-
-acf(fit$residuals)
-ltest <- ljung.wge(fit$resid)
-ltest$pval # p-value is not significant; we cannot reject the null based on this test because the residuals are likely white noise
-
-# ASE for model with no lag and no trend (last 5)
-df2 <- df[1:(nrow(df)-5),] # make a training dataset that excludes the most recent 5 points that we want to predict (our test data, or "holdout")
-t2 <- 1:(nrow(df)-5)
-ksfit <- lm(df2$low ~ t2 + df2$volume + df2$HiLo + df2$OpClo + t2*df2$volume)
-aic.wge(ksfit$residuals,p=0:8, q=0:5)  # AIC picks p=2 q=0
-fit <- arima(df2$low, order=c(2,1,1), xreg=cbind(t2, df2$volume, df2$HiLo, df2$OpClo, t2*df2$volume))
-fit
-
-preds <- predict(fit, newxreg=cbind(t[(nrow(df)-4):nrow(df)], df$volume[(nrow(df)-4):nrow(df)], df$HiLo[(nrow(df)-4):nrow(df)], df$OpClo[(nrow(df)-4):nrow(df)], t[(nrow(df)-4):nrow(df)]*df$volume[(nrow(df)-4):nrow(df)]))
-ASE <- mean((df$low[(nrow(df)-4):nrow(df)] - preds$pred)^2)
-ASE # 0.03534549
-
-plot(seq(1,nrow(df),1), df$low, type="b", xlab = "Trading Days", ylab = "Trade Prices", main = "Multiple Linear Regression with Trend and Volume Interaction", lwd=2)
-points(seq((nrow(df) - 4), nrow(df), 1), preds$pred, type="b", pch=15)
-```
-
-## Multivariate Regression with Trend, Time and Volume Interaction, Time and OpClo Interaction
-```{r Multivariate Regression with Trend, Time and Volume Interaction, Time and OpClo Interaction, echo=T, warning=F}
-df <- stock_data()
-# First Variable has the "time shift"
-ccf(df$volume,df$low, type="correlation") # nothing too significant to warrant lagging volume
-ccf(df$HiLo,df$low, type="correlation") # no strong cross-correlation
-ccf(df$OpClo,df$low, type="correlation") # Open-Close does not require lagging.
-
-t=1:nrow(df) # df has 100 rows. Creating a time vector with this for trending
-
-# ccf(data.frame(df$volume, df$low, type="correlation")
-ksfit <- lm(low ~ t + volume + HiLo + OpClo, data=df)
-
-aic.wge(ksfit$residuals, p=0:10, q=0:5)  # AIC picks p=2, q=0 for ACGL
-
-# Volume and the differences between high and low, open and closed seem the most reasonable
-fit <- arima(df$low, order=c(2,1,0), xreg=cbind(t, df$volume, df$HiLo, df$OpClo)) # earlier analysis determined a difference is needed
-fit
-
-acf(fit$residuals)
-ltest <- ljung.wge(fit$resid)
-ltest$pval # p-value is not significant; we cannot reject the null based on this test because the residuals are likely white noise
-
-# ASE for model with no lag and no trend (last 5)
-df2 <- df[1:(nrow(df)-5),] # make a training dataset that excludes the most recent 5 points that we want to predict (our test data, or "holdout")
-t2 <- 1:(nrow(df)-5)
-ksfit <- lm(df2$low ~ t2 + df2$volume + df2$HiLo + df2$OpClo + t2*df2$volume)
-aic.wge(ksfit$residuals,p=0:8, q=0:5)  # AIC picks p=2 q=0
-fit <- arima(df2$low, order=c(2,1,1), xreg=cbind(t2, df2$volume, df2$HiLo, df2$OpClo, t2*df2$volume, t2*df2$OpClo))
-fit
-
-preds <- predict(fit, newxreg=cbind(t[(nrow(df)-4):nrow(df)], df$volume[(nrow(df)-4):nrow(df)], df$HiLo[(nrow(df)-4):nrow(df)], df$OpClo[(nrow(df)-4):nrow(df)], t[(nrow(df)-4):nrow(df)]*df$volume[(nrow(df)-4):nrow(df)], t[(nrow(df)-4):nrow(df)]*df$OpClo[(nrow(df)-4):nrow(df)]))
-ASE <- mean((df$low[(nrow(df)-4):nrow(df)] - preds$pred)^2)
-ASE # 0.03452872
-
-plot(seq(1,nrow(df),1), df$low, type="b", xlab = "Trading Days", ylab = "Trade Prices", main = "Multiple Linear Regression with Trend and Volume Interaction", lwd=2)
-points(seq((nrow(df) - 4), nrow(df), 1), preds$pred, type="b", pch=15)
-```
 
 # Vector Autoregressive Modeling
 
 ## Vector Autoregressive Modeling without Trend
+The vector Autoregressive models used take all the training data - including for the exogenous variables - to bulid a model. We forecasted 5 data points ahead from this trainin set of 95 out of 100 data points and then generated the overall ASE and the 5-point rolling window ASE for model comparison.
 ```{r Vector Autoregressive Modeling without Trend, echo=T, warning=F}
 df <- stock_data()
 plotts.sample.wge(df$volume, arlimits=T)
@@ -415,13 +313,37 @@ ccf(df$volume,df$low, type="correlation") # nothing too significant to warrant l
 ccf(df$HiLo,df$low, type="correlation") # no strong cross-correlation
 ccf(df$OpClo,df$low, type="correlation") # Open-Close does not require lagging.
 
+
 df2 <- df[1:(nrow(df)-5),]
+
 VARselect(df2$low, lag.max=6, season=NULL, exogen=data.frame(df2$volume, df2$HiLo, df2$OpClo), type="const") # AIC picked p=1 with AIC -2.3235
 lsfit <- VAR(y=cbind(df2$low, df2$volume, df2$HiLo, df2$OpClo), p=1, type="const") # with p=5, this will estimate the coefficients for lag 5
 preds <- predict(lsfit, n.ahead=5)
 
 ASE <- mean((df$low[(nrow(df)-4):nrow(df)] - preds$fcst$y1[,1])^2)
 ASE # 0.2383062
+
+
+trainingSize = 91
+horizon = 5
+ASEHolder_2 = numeric()
+
+for( i in 1:5)
+{
+  
+  VARselect(df2$low[i:(i + (trainingSize - 1))], lag.max=6, season=NULL, exogen=data.frame(df2$volume[i:(i + (trainingSize - 1))], df2$HiLo[i:(i + (trainingSize - 1))], df2$OpClo[i:(i + (trainingSize - 1))]), type="const") # AIC picked p=1 with AIC -2.3235
+  lsfit <- VAR(y=cbind(df2$low[i:(i + (trainingSize - 1))], df2$volume[i:(i + (trainingSize - 1))], df2$HiLo[i:(i + (trainingSize - 1))], df2$OpClo[i:(i + (trainingSize - 1))]), p=1, type="const")
+  preds <- predict(lsfit, n.ahead=5)
+ # forecasts = fore.arma.wge(midterm2020[i:(i + (trainingSize - 1))], phi=phis, theta=thetas, n.ahead=horizon, lastn=F, plot=F)
+
+  ASE_2 = mean((df$low[(trainingSize + i):(trainingSize + i + (horizon) - 1)] - preds$fcst$y1[1])^2)
+  
+  ASEHolder_2[i] = ASE_2
+  
+}
+
+WindowedASE_mod2 = mean(ASEHolder_2)
+WindowedASE_mod2 # 0.3102587
 
 plot(seq(1,100,1), df$low[1:100], type = "l", xlim = c(0,100), xlab = "Trading Days", ylab = "Trade Prices", main = "Vector Autoregressive Modeling without Trend", lwd=2)
 lines(seq(96,100,1), preds$fcst$y1[,1], type = "l", col = "red", lwd=2)
@@ -437,7 +359,7 @@ ccf(df$volume,df$low, type="correlation") # nothing too significant to warrant l
 ccf(df$HiLo,df$low, type="correlation") # no strong cross-correlation
 ccf(df$OpClo,df$low, type="correlation") # Open-Close does not require lagging.
 
-df2 <- df[1:(nrow(df)-5),]
+df2 <- df[1:(nrow(df)-5),] 
 t <- 1:100
 # Because of the white noise cross-correlation between all exogenous variables and the response variable, it's reasonable to expect only an AR(1) from VARselect. The model will quickly approximate the signal's mean without much sensitivity to change.
 VARselect(df2$low, lag.max=6, season=NULL, exogen=data.frame(t[1:95], df2$volume, df2$HiLo, df2$OpClo), type="const") # AIC:  p=1 with AIC -2.3158
@@ -446,6 +368,27 @@ preds <- predict(lsfit, n.ahead=5)
 
 ASE <- mean((df$low[(nrow(df)-4):nrow(df)] - preds$fcst$y1[,1])^2)
 ASE # 0.1132188
+
+t = 1:100
+trainingSize = 91
+horizon = 5
+ASEHolder_2 = numeric()
+
+for( i in 1:5)
+{
+  
+  VARselect(df2$low[i:(i + (trainingSize - 1))], lag.max=6, season=NULL, exogen=data.frame(t[i:(i + (trainingSize - 1))], df2$volume[i:(i + (trainingSize - 1))], df2$HiLo[i:(i + (trainingSize - 1))], df2$OpClo[i:(i + (trainingSize - 1))]), type="const") # AIC picked p=1 with AIC -2.3235
+  lsfit <- VAR(y=cbind(df2$low[i:(i + (trainingSize - 1))], exogen = data.frame(t[i:(i + (trainingSize - 1))], df2$volume[i:(i + (trainingSize - 1))], df2$HiLo[i:(i + (trainingSize - 1))], df2$OpClo[i:(i + (trainingSize - 1))])), p=1, type="const")
+  preds <- predict(lsfit, n.ahead=5)
+
+  ASE_2 = mean((df$low[(trainingSize + i):(trainingSize + i + (horizon) - 1)] - preds$fcst$df2.low.i..i....trainingSize...1...[1])^2)
+  
+  ASEHolder_2[i] = ASE_2
+  
+}
+
+WindowedASE_mod2 = mean(ASEHolder_2)
+WindowedASE_mod2 # 0.2139037
 
 plot(seq(1,100,1), df$low[1:100], type = "l",xlim = c(0,100), xlab = "Trading Days", ylab = "Trade Prices", main = "Vector Autoregressive Modeling with Trend", lwd=2)
 lines(seq(96,100,1), preds$fcst$y1[,1], type = "l", col = "red", lwd=2)
@@ -474,6 +417,29 @@ preds <- predict(lsfit, n.ahead=5)
 
 ASE <- mean((df$low[(nrow(df)-4):nrow(df)] - preds$fcst$y1[,1])^2)
 ASE # 0.1296242
+
+
+t = 1:100
+trainingSize = 91
+horizon = 5
+ASEHolder_2 = numeric()
+
+for( i in 1:5)
+{
+  
+  VARselect(df2$low[i:(i + (trainingSize - 1))], lag.max=6, season=NULL, exogen=data.frame(t[i:(i + (trainingSize - 1))], df2$volume[i:(i + (trainingSize - 1))], df2$HiLo[i:(i + (trainingSize - 1))], df2$OpClo[i:(i + (trainingSize - 1))], ((df2$volume[i:(i + (trainingSize - 1))]) * t[i:(i + (trainingSize - 1))])), type="const") # AIC picked p=1 with AIC -2.3235
+  lsfit <- VAR(y=cbind(df2$low[i:(i + (trainingSize - 1))], exogen = data.frame(t[i:(i + (trainingSize - 1))], df2$volume[i:(i + (trainingSize - 1))], df2$HiLo[i:(i + (trainingSize - 1))], df2$OpClo[i:(i + (trainingSize - 1))], ((df2$volume[i:(i + (trainingSize - 1))]) * t[i:(i + (trainingSize - 1))]))), p=1, type="const")
+  preds <- predict(lsfit, n.ahead=5)
+
+  ASE_2 = mean((df$low[(trainingSize + i):(trainingSize + i + (horizon) - 1)] - preds$fcst$df2.low.i..i....trainingSize...1...[1])^2)
+  
+  ASEHolder_2[i] = ASE_2
+  
+}
+
+WindowedASE_mod2 = mean(ASEHolder_2)
+WindowedASE_mod2 # 0.2055229
+
 
 plot(seq(1,100,1), df$low[1:100], type = "l",xlim = c(0,100), xlab = "Trading Days", ylab = "Trade Prices", main = "Vector Autoregressive Modeling with Trend", lwd=2)
 lines(seq(96,100,1), preds$fcst$y1[,1], type = "l", col = "red", lwd=2)
@@ -505,6 +471,30 @@ preds <- predict(lsfit, n.ahead=5)
 ASE <- mean((df$low[(nrow(df)-4):nrow(df)] - preds$fcst$y1[,1])^2)
 ASE # 0.1703138
 
+
+t = 1:100
+trainingSize = 91
+horizon = 5
+ASEHolder_2 = numeric()
+
+for( i in 1:5)
+{
+  
+  VARselect(df2$low[i:(i + (trainingSize - 1))], lag.max=6, season=NULL, exogen=data.frame(t[i:(i + (trainingSize - 1))], df2$volume[i:(i + (trainingSize - 1))], df2$HiLo[i:(i + (trainingSize - 1))], df2$OpClo[i:(i + (trainingSize - 1))], ((df2$OpClo[i:(i + (trainingSize - 1))]) * t[i:(i + (trainingSize - 1))]),((df2$volume[i:(i + (trainingSize - 1))]) * t[i:(i + (trainingSize - 1))])), type="const")
+  
+  lsfit <- VAR(y=cbind(df2$low[i:(i + (trainingSize - 1))], exogen = data.frame(t[i:(i + (trainingSize - 1))], df2$volume[i:(i + (trainingSize - 1))], df2$HiLo[i:(i + (trainingSize - 1))], df2$OpClo[i:(i + (trainingSize - 1))], ((df2$volume[i:(i + (trainingSize - 1))]) * t[i:(i + (trainingSize - 1))])), ((df2$OpClo[i:(i + (trainingSize - 1))]) * t[i:(i + (trainingSize - 1))])), p=1, type="const")
+  preds <- predict(lsfit, n.ahead=5)
+
+  ASE_2 = mean((df$low[(trainingSize + i):(trainingSize + i + (horizon) - 1)] - preds$fcst$df2.low.i..i....trainingSize...1...[1])^2)
+  
+  ASEHolder_2[i] = ASE_2
+  
+}
+
+WindowedASE_mod2 = mean(ASEHolder_2)
+WindowedASE_mod2 # 0.2288478
+
+
 plot(seq(1,100,1), df$low[1:100], type = "l",xlim = c(0,100), xlab = "Trading Days", ylab = "Trade Prices", main = "Vector Autoregressive Modeling with Trend", lwd=2)
 lines(seq(96,100,1), preds$fcst$y1[,1], type = "l", col = "red", lwd=2)
 ```
@@ -512,6 +502,7 @@ lines(seq(96,100,1), preds$fcst$y1[,1], type = "l", col = "red", lwd=2)
 # Neural Network Models
 
 ## Neural Network without Trend
+# Because prices can change quickly from day-to-day and there is considerable time required to calculate rolling averages for competing neural networks (training time is extensive), we did not provide a rolling window ASE.
 ```{r Neural Network without Trend, echo=T, warning=F, eval=F}
 df <- stock_data()
 # First Variable has the "time shift"
@@ -534,6 +525,11 @@ fore.mlp <- forecast(fit.mlp, h=5, xreg=data.frame(volumeFull, HiLoFull, OpCloFu
 plot(fore.mlp)
 ASE = mean((lowTest - fore.mlp$mean)^2)
 ASE # 0.1758194
+
+t = 1:100
+trainingSize = 95
+horizon = 5
+ASEHolder_2 = numeric()
 
 ```
 
@@ -597,6 +593,7 @@ It is important to note that we did not identify an interaction between time and
 ```{r Neural Network with Trend, Time and Volume Interaction, Time and OpClo Interaction, echo=T, warning=F, eval=F}
 df <- stock_data()
 t <- 1:nrow(df)
+
 # First Variable has the "time shift"
 ccf(df$volume,df$low, type="correlation") # nothing too significant to warrant lagging volume
 ccf(df$HiLo,df$low, type="correlation") # no strong cross-correlation
@@ -607,14 +604,74 @@ lowTest <- df$low[(nrow(df)-4):nrow(df)] # forecast actuals
 lowTrain <- ts(dfTrain$low) # a training set of the target minus the test forecast
 volumeFull <- ts(df$volume) # the full dataset (train + test) of xreg
 HiLoFull <- ts(df$HiLo) # the full dataset (train + test) of xreg
+High <- ts(df$high)
 OpCloFull <- ts(df$OpClo) # the full dataset (train + test) of xreg
 
-fit.mlp <- mlp(lowTrain, xreg=data.frame(t, volumeFull, HiLoFull, OpCloFull, t*volumeFull, t*OpCloFull), reps = 15, comb = "mean", hd.auto.type="cv")
+fit.mlp <- mlp(lowTrain, xreg=data.frame(t, volumeFull, High, OpCloFull, t*volumeFull, t*OpCloFull), reps = 15, comb = "mean", hd.auto.type="cv", difforder=NULL)
 fit.mlp
 plot(fit.mlp)
 
-fore.mlp <- forecast(fit.mlp, h=5, xreg=data.frame(t, volumeFull, HiLoFull, OpCloFull, t*volumeFull, t*OpCloFull))
+fore.mlp <- forecast(fit.mlp, h=5, xreg=data.frame(t, volumeFull, High, OpCloFull, t*volumeFull, t*OpCloFull))
 plot(fore.mlp)
 ASE = mean((lowTest - fore.mlp$mean)^2)
-ASE # 0.05682376
+ASE # 0.05711815
+```
+
+``` {r rolling ASE}
+#MLP
+#Rolling ASE
+for i in (0:(num_batches-1))
+{
+  fit.mlp <- mlp(ts(ts[i:(i+(batch_size-1))]), xreg=data.frame(volumeFull[i:(i+(batch_size-1))], HiLoFull[i:(i+(batch_size-1))], OpCloFull[i:(i+(batch_size-1))]), reps = 15, comb = "mean", hd.auto.type="cv")
+  fore.mlp <- forecast(fit.mlp, h=5, xreg=data.frame(volumeFull, HiLoFull, OpCloFull))
+  ASEs[i+1] = mean((ts[(length(ts) - 4):length(ts)] - fore.mlp$mean)^2)
+  start = start+1
+}
+ASEs
+mean(ASEs)
+
+
+#Signal + Noise
+df2 <- df[1:(nrow(df)-5),]
+ts = df$low
+t2 = 1:95
+batch_size = 91
+start = 1
+num_batches = length(ts)-batch_size+1
+ASEs = numeric(num_batches)
+
+for (i in 0: (num_batches-1))
+{
+  fit <- arima(df2$low, order=c(2,1,1), xreg=cbind(t2, df2$volume, df2$HiLo, df2$OpClo, t2*df2$volume, t2*df2$OpClo))
+  preds <- predict(fit, newxreg=cbind(t[(nrow(df)-4):nrow(df)], df$volume[(nrow(df)-4):nrow(df)], df$HiLo[(nrow(df)-4):nrow(df)], 
+                                      df$OpClo[(nrow(df)-4):nrow(df)], t[(nrow(df)-4):nrow(df)]*df$volume[(nrow(df)-4):nrow(df)],
+                                      t[(nrow(df)-4):nrow(df)]*df$OpClo[(nrow(df)-4):nrow(df)]))
+
+  ASEs[i+1] = mean((df$low[(nrow(df)-4):nrow(df)] - preds$pred)^2)
+}
+ASEs
+mean(ASEs)
+
+
+#ARIMA
+ts = df$low
+batch_size = 91
+start = 1
+num_batches = length(ts)-batch_size+1
+ASEs = numeric(num_batches)
+
+for (i in 0: (num_batches-1))
+{
+  forecasts = fore.aruma.wge(ts[start:(batch_size+i)], phi = c(0.1227,-.1183,.1454,-.2587,.029), d = 1, n.ahead = 5, lastn = TRUE, limits = FALSE)
+  ASEs[i+1] = mean((ts[(length(ts) - 4):length(ts)] - forecasts$f)^2)
+}
+ASEs
+mean(ASEs)
+
+
+#Ensemble
+mlp_pred = as.numeric(fore.mlp$mean)
+signoise = as.numeric(preds$pred)
+en_pred = (mlp_pred + signoise)/2
+mean((ts[(length(ts) - 4):length(ts)] - en_pred)^2)
 ```
