@@ -18,15 +18,10 @@ can both introduce artificial seasonality and increased random variation into fo
 through API from AlphaVantage.
 
 Because of the time constraints involved with directly analyzing each stock, we developed a loop to process through each file, perform
-a linear model on each stock and where the slope for price is positive and greater than 0.04 and the price is within an affordable 
+a linear model on each stock and where the slope for price is positive with a slope greater than 0.04 and the price is within an affordable 
 range - between 5 and 50 dollars per share - we then select that stock to assess if the spectral density indicates any wandering 
 behavior based on a peak at zero and no additional peaks thereafter. Because of this wandering, the sample ACFs were also expected 
-to damp exponentially, indicative of non-stationary behavior. This method allowed us to identify ideal stocks for signal-plus-noise 
-modeling with postive, profitable trending. This method provided us 7 stocks we deemed useful, from which we selected one. The one we 
-chose appeared to provide the most stationary noise around the signal.
-
-This method uses linear regression to identify a profitable signal-plus-noise model fit. Cochran-orcutt is needed after selection of 
-stocks.
+to damp exponentially, indicative of non-stationary behavior, potentially trending behavior. This method allowed us to identify seven potentially ideal stocks for signal-plus-noise modeling with postive, profitable trending. From these 7 stocks, we selected one and modeled it. We chose this stock to model based on the stationarity of the noise around the signal.
 
 # Data Selection
 ```{r Stock Selection, echo=T, warning=F, eval=F, fig.cap="Stock Selection"}
@@ -58,8 +53,8 @@ for(file in files){
 
 ```
 
-# This is the stock we discovered. Candlestick chart for fun.
-Because the variation within high, low, open, and close prices can indicate stability of performance of a stock in terms of stationarity, we decided to include a ratio of box-to-tail dimensions. The candlestick chart provides useful insight into the dynamic relationship between the open, close, high, and low prices of the Exploratory Data Analysis process.
+# Candlestick chart for Exploratory Data Analysis (EDA)
+Because we have a high, low, open, and close price, we wanted to visually inspect the relationship between these prices across each data point. Through this visual inspection, we noticed differing amounts of variation within each price sets across all data points. As a result, we decided to engineer two new features representing the difference between the high and low and open and close prices. These two new features allowed our multivariate modeling to ingest additional insights into the dynamic relationships betweeen prices in our data.
 ```{r Candlesticks for Visual Fun, echo=T, warning=F, fig.cap="Candlestick Chart for ACGL"}
 urlfile = "https://raw.githubusercontent.com/PaulAdams4361/Time-Series-Project/master/NASDAQ_Daily_ACGL.csv"
 df <- read_csv(url(urlfile))
@@ -74,10 +69,7 @@ fig <- fig %>% layout(title = "Candlestick Chart for ACGL")
 fig
 
 ```
-When stocks are trending up, the low price will very often be below the moving average. it is useful to consider the low price in relation to the moving average such that if the low price drops below the moving average, it 
-
-For example, during an uptrend, if a trader is watching for price bars dropping below a moving average (MA), then using the low of each candle as the input for the MA may make more sense than using the close. 
-https://www.thebalance.com/average-of-the-open-high-low-and-close-1031216
+After anlayzing the candlestick plot, we decided to use the low price as the target feature of the model. The reason we chose this is because when a stock is trending up, the low price is quick to point this out because the moving average will often rise above the low price, especially for stronger uptrending behavior. This further provides insight into potential investment profitability.
 ```{r Custom Project DataFrame, echo=T, warning=F, fig.cap="Signal-Plus-Noise Model"}
 
 stock_data <- function(x){
@@ -98,6 +90,26 @@ stock_data <- function(x){
 
 df <- stock_data()
 
+stock_data_trans <- function(x){
+  urlfile="https://raw.githubusercontent.com/PaulAdams4361/Time-Series-Project/master/NASDAQ_Daily_ACGL.csv"
+  df <- read_csv(url(urlfile))
+  df2 <- df[1:(nrow(df)-1),]
+  df2$volume <- (df2$volume/10000)
+  lowww <- artrans.wge(df$low, phi.tr=1)
+  HiLo <- df2$high - lowww
+  HiClo <- df2$high - df2$close
+  OpHi <- df2$open - df2$high
+  OpClo <- df2$open - df2$close
+  OpLo <- df2$open - lowww
+  CloLo <- df2$close - lowww
+  varianceRatio <- (df2$open - df2$close) / (df2$high - lowww) * 100
+  spread <- df2$high - lowww
+  df2$low <- lowww
+  dfnew <- data.frame(cbind(df2, varianceRatio, HiLo, HiClo, OpHi, OpClo, OpLo, CloLo))
+  return(dfnew)
+}
+
+dftrans <- stock_data_trans()
 ```
 # Signal-Plus-Noise Model
 
@@ -312,17 +324,12 @@ plotts.sample.wge(df$volume, arlimits=T)
 ccf(df$volume,df$low, type="correlation") # nothing too significant to warrant lagging volume
 ccf(df$HiLo,df$low, type="correlation") # no strong cross-correlation
 ccf(df$OpClo,df$low, type="correlation") # Open-Close does not require lagging.
-
-
 df2 <- df[1:(nrow(df)-5),]
-
 VARselect(df2$low, lag.max=6, season=NULL, exogen=data.frame(df2$volume, df2$HiLo, df2$OpClo), type="const") # AIC picked p=1 with AIC -2.3235
 lsfit <- VAR(y=cbind(df2$low, df2$volume, df2$HiLo, df2$OpClo), p=1, type="const") # with p=5, this will estimate the coefficients for lag 5
 preds <- predict(lsfit, n.ahead=5)
-
 ASE <- mean((df$low[(nrow(df)-4):nrow(df)] - preds$fcst$y1[,1])^2)
 ASE # 0.2383062
-
 
 trainingSize = 91
 horizon = 5
@@ -335,8 +342,7 @@ for( i in 1:5)
   lsfit <- VAR(y=cbind(df2$low[i:(i + (trainingSize - 1))], df2$volume[i:(i + (trainingSize - 1))], df2$HiLo[i:(i + (trainingSize - 1))], df2$OpClo[i:(i + (trainingSize - 1))]), p=1, type="const")
   preds <- predict(lsfit, n.ahead=5)
  # forecasts = fore.arma.wge(midterm2020[i:(i + (trainingSize - 1))], phi=phis, theta=thetas, n.ahead=horizon, lastn=F, plot=F)
-
-  ASE_2 = mean((df$low[(trainingSize + i):(trainingSize + i + (horizon) - 1)] - preds$fcst$y1[1])^2)
+  ASE_2 = mean((df$low[(trainingSize + i):(trainingSize + i + (horizon) - 1)] - preds$fcst$y1[,1])^2)
   
   ASEHolder_2[i] = ASE_2
   
@@ -381,7 +387,7 @@ for( i in 1:5)
   lsfit <- VAR(y=cbind(df2$low[i:(i + (trainingSize - 1))], exogen = data.frame(t[i:(i + (trainingSize - 1))], df2$volume[i:(i + (trainingSize - 1))], df2$HiLo[i:(i + (trainingSize - 1))], df2$OpClo[i:(i + (trainingSize - 1))])), p=1, type="const")
   preds <- predict(lsfit, n.ahead=5)
 
-  ASE_2 = mean((df$low[(trainingSize + i):(trainingSize + i + (horizon) - 1)] - preds$fcst$df2.low.i..i....trainingSize...1...[1])^2)
+  ASE_2 = mean((df$low[(trainingSize + i):(trainingSize + i + (horizon) - 1)] - preds$fcst$df2.low.i..i....trainingSize...1...[,1])^2)
   
   ASEHolder_2[i] = ASE_2
   
@@ -391,7 +397,7 @@ WindowedASE_mod2 = mean(ASEHolder_2)
 WindowedASE_mod2 # 0.2139037
 
 plot(seq(1,100,1), df$low[1:100], type = "l",xlim = c(0,100), xlab = "Trading Days", ylab = "Trade Prices", main = "Vector Autoregressive Modeling with Trend", lwd=2)
-lines(seq(96,100,1), preds$fcst$y1[,1], type = "l", col = "red", lwd=2)
+lines(seq(96,100,1), preds$fcst$df2.low.i..i....trainingSize...1...[,1], type = "l", col = "red", lwd=2)
 
 ```
 
@@ -418,7 +424,6 @@ preds <- predict(lsfit, n.ahead=5)
 ASE <- mean((df$low[(nrow(df)-4):nrow(df)] - preds$fcst$y1[,1])^2)
 ASE # 0.1296242
 
-
 t = 1:100
 trainingSize = 91
 horizon = 5
@@ -427,22 +432,22 @@ ASEHolder_2 = numeric()
 for( i in 1:5)
 {
   
-  VARselect(df2$low[i:(i + (trainingSize - 1))], lag.max=6, season=NULL, exogen=data.frame(t[i:(i + (trainingSize - 1))], df2$volume[i:(i + (trainingSize - 1))], df2$HiLo[i:(i + (trainingSize - 1))], df2$OpClo[i:(i + (trainingSize - 1))], ((df2$volume[i:(i + (trainingSize - 1))]) * t[i:(i + (trainingSize - 1))])), type="const") # AIC picked p=1 with AIC -2.3235
+  VARselect(df2$low[i:(i + (trainingSize - 1))], lag.max=6, season=NULL, exogen=data.frame(t[i:(i + (trainingSize - 1))], df2$volume[i:(i + (trainingSize - 1))], df2$HiLo[i:(i + (trainingSize - 1))], df2$OpClo[i:(i + (trainingSize - 1))], ((df2$volume[i:(i + (trainingSize - 1))]) * t[i:(i + (trainingSize - 1))])), type="const") # AIC picked p=2 with AIC -2.44854735
   lsfit <- VAR(y=cbind(df2$low[i:(i + (trainingSize - 1))], exogen = data.frame(t[i:(i + (trainingSize - 1))], df2$volume[i:(i + (trainingSize - 1))], df2$HiLo[i:(i + (trainingSize - 1))], df2$OpClo[i:(i + (trainingSize - 1))], ((df2$volume[i:(i + (trainingSize - 1))]) * t[i:(i + (trainingSize - 1))]))), p=1, type="const")
   preds <- predict(lsfit, n.ahead=5)
 
-  ASE_2 = mean((df$low[(trainingSize + i):(trainingSize + i + (horizon) - 1)] - preds$fcst$df2.low.i..i....trainingSize...1...[1])^2)
+  ASE_2 = mean((df$low[(trainingSize + i):(trainingSize + i + (horizon) - 1)] - preds$fcst$df2.low.i..i....trainingSize...1...[,1])^2)
   
   ASEHolder_2[i] = ASE_2
   
 }
 
 WindowedASE_mod2 = mean(ASEHolder_2)
-WindowedASE_mod2 # 0.2055229
+WindowedASE_mod2 # 0.1869798
 
 
 plot(seq(1,100,1), df$low[1:100], type = "l",xlim = c(0,100), xlab = "Trading Days", ylab = "Trade Prices", main = "Vector Autoregressive Modeling with Trend", lwd=2)
-lines(seq(96,100,1), preds$fcst$y1[,1], type = "l", col = "red", lwd=2)
+lines(seq(96,100,1), preds$fcst$df2.low.i..i....trainingSize...1...[,1], type = "l", col = "red", lwd=2)
 
 ```
 
@@ -471,7 +476,6 @@ preds <- predict(lsfit, n.ahead=5)
 ASE <- mean((df$low[(nrow(df)-4):nrow(df)] - preds$fcst$y1[,1])^2)
 ASE # 0.1703138
 
-
 t = 1:100
 trainingSize = 91
 horizon = 5
@@ -496,7 +500,7 @@ WindowedASE_mod2 # 0.2288478
 
 
 plot(seq(1,100,1), df$low[1:100], type = "l",xlim = c(0,100), xlab = "Trading Days", ylab = "Trade Prices", main = "Vector Autoregressive Modeling with Trend", lwd=2)
-lines(seq(96,100,1), preds$fcst$y1[,1], type = "l", col = "red", lwd=2)
+lines(seq(96,100,1), preds$fcst$df2.low.i..i....trainingSize...1...[,1], type = "l", col = "red", lwd=2)
 ```
 
 # Neural Network Models
