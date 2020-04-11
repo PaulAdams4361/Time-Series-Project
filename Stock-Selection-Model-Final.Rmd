@@ -623,7 +623,9 @@ ASE = mean((lowTest - fore.mlp$mean)^2)
 ASE # 0.05711815
 ```
 
-``` {r rolling ASE, echo=T, warning=F, eval=T}
+# Rolling ASEs
+### Rolling ASE for Neural Networks: Multi-Layered Perceptrons
+``` {r Rolling ASE NN-MLP, echo=T, warning=F, eval=T}
 df <- stock_data()
 #MLP
 ts = df$low
@@ -653,6 +655,10 @@ signoise.forecast <- fore.sigplusnoise.wge(df$low, max.p=2, n.ahead=5, limits=T,
 SIGNOISE_ASE = mean((df$low[(nrow(df)-5+1):nrow(df)] - signoise.forecast$f)^2)
 SIGNOISE_ASE
 
+```
+
+### Rolling ASE for Signal-Plus-Noise
+```{r echo=T, warning=F}
 #Signal + Noise
 df2 <- df[1:(nrow(df)-5),]
 ts = df$low
@@ -674,7 +680,11 @@ for (i in 0:(num_batches-1))
 ASEs
 mean(ASEs)
 
+```
 
+### Rolling ASE for ARIMA(5,1,0)
+```{r echo=T, warning=F}
+### Rolling ASE for Neural Networks: Multi-Layered Perceptrons
 #ARIMA
 ts = df$low
 batch_size = 95
@@ -691,7 +701,10 @@ for (i in 1:5)
 ASEs
 mean(ASEs) 
 
+```
 
+### Rolling ASE for Ensemble Model: Signal-Plus-Noise and Multi-Layered Perceptrons
+```{r echo=T, warning=F}
 #Ensemble
 mlp_pred = as.numeric(fore.mlp$mean)
 signoise = as.numeric(signoise.forecast$f)
