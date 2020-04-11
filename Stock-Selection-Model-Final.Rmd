@@ -72,7 +72,10 @@ fig <- fig %>% layout(title = "Candlestick Chart for ACGL")
 fig
 
 ```
+
 After anlayzing the candlestick plot, we decided to use the low price as the target feature of the model. The reason we chose this is because when a stock is trending up, the low price is quick to point this out because the moving average will often rise above the low price, especially for stronger uptrending behavior. This further provides insight into potential investment profitability.
+
+Below are functions for data portability throughout the project. These are the two source data sets we will use.
 ```{r Custom Project DataFrame, echo=T, warning=F, fig.cap="Signal-Plus-Noise Model"}
 
 stock_data <- function(x){
@@ -340,7 +343,7 @@ lsfit <- VAR(y=cbind(df2$low, df2$volume, df2$HiLo, df2$OpClo), p=2, type="const
 preds <- predict(lsfit, n.ahead=5)
 
 ASE <- mean((df$low[(nrow(df)-4):nrow(df)] - preds$fcst$y1[,1])^2)
-ASE # 0.2383062
+ASE # 0.2282559
 
 trainingSize = 91
 horizon = 5
@@ -414,7 +417,7 @@ lines(seq(96,100,1), preds$fcst$df2.low.i..i....trainingSize...1...[,1], type = 
 ```
 
 ## Vector Autoregressive Modeling with Trend, Trend and Volume Interaction
-Our model with Trend and Trend and volume interaction, we included time as an additive predictor in addition to a multiplicative term between trend and share volume traded. This reduced the ASE, which by this metric, indicated this is the best VAR model. The model identifed is an AR(2) with an AIC score of -2.4780.
+Our VAR model with additive terms for trend, volume, the spread between high and low and open and close prices in addition to a multiplicative term for trend and its impact on volume outperformed all other VAR models we built in terms of ASE. Adding the multiplicative term in this model reduced the ASE to roughly half, from 0.2139 to 0.1296. The Autoregressive lag order identified for the model is an AR(2) with an AIC score of -2.4780.
 ```{r Vector Autoregressive Modeling with Trend, Time and Volume Interaction, echo=T, warning=F}
 df <- stock_data()
 # First Variable has the "time shift"
@@ -465,7 +468,7 @@ lines(seq(96,100,1), preds$fcst$df2.low.i..i....trainingSize...1...[,1], type = 
 ```
 
 ## Vector Autoregressive Modeling with Trend, Time and Volume Interaction, Time and OpClo Interaction
-Finally, we modeled with an interaction between trend and volume and trend and the range between open and close prices (we also attempted for interaction between trend and the range between high and low prices, but this hurt the model, potentially indicating there is greater variation in these two prices than the outer two - open and close). However, the ASE resulting from the forecast was lower than the multiplicative model only including an interaction between trend and trade volume. The model identified is an AR(2) with an AIC score of -2.4645.
+Finally, we modeled with an interaction between trend and volume and trend and the range between open and close prices (we also attempted for interaction between trend and the range between high and low prices, but this hurt the model, potentially indicating there is greater variation in between the high and low prices than the open and close prices). Nonetheless, the ASE resulting from the forecast was higher than the multiplicative model only including an interaction between trend and trade volume. Therefore, the latter model is the one we selected as the top VAR candidate. As with the other VAR models, this model applied an identified second-order autoregressive with an AIC score of -2.4645.
 ```{r Vector Autoregressive Modeling with Trend, Time and Volume Interaction, Time and OpClo Interaction, echo=T, warning=F}
 df <- stock_data()
 plotts.sample.wge(df$volume, arlimits=T)
@@ -516,10 +519,13 @@ plot(seq(1,100,1), df$low[1:100], type = "l",xlim = c(0,100), xlab = "Trading Da
 lines(seq(96,100,1), preds$fcst$df2.low.i..i....trainingSize...1...[,1], type = "l", col = "red", lwd=2)
 ```
 
-# Neural Network Models
+# Neural Network Models: Multi-Layered Perceptrons
+A multi-layered perceptron operates using a "feedforward" artificial neural network to pass forward information from the input nodes into a hidden layer of nodes that perform logical activation functions before processing into the output node. In the case of this analysis, lags were detected and applied on input to both the predictor regressors as well as the univariate response.
+
+When adding additional predictor variables to the multivariate models, the forecasts converge less toward the long-run mean and more toward the behavior of the realization itself. With this said, the addition of further predictor variables - such as those through natural language processing of market sentiment analysis - can aid in further stabilizing useful multivariate models.
 
 ## Neural Network without Trend
-Because prices can change quickly from day-to-day and there is considerable time required to calculate rolling averages for competing neural networks (training time is extensive), we did not provide a rolling window ASE.
+The Neural Network without trend model we produced generated the highest Average Squared Error of all our MLP models. However, the ASE was still highly competitive with all other models we produced. The ASE for this model is 0.1758194.
 ```{r Neural Network without Trend, echo=T, warning=F, eval=T}
 df <- stock_data()
 # First Variable has the "time shift"
@@ -543,14 +549,10 @@ plot(fore.mlp)
 ASE = mean((lowTest - fore.mlp$mean)^2)
 ASE # 0.1758194
 
-t = 1:100
-trainingSize = 95
-horizon = 5
-ASEHolder_2 = numeric()
-
 ```
 
 ## Neural Network with Trend
+After adding trend into our Neural Network modeling, we successfully lowered the ASE to 0.06421939.
 ```{r Neural Network with Trend, echo=T, warning=F, eval=T}
 df <- stock_data()
 t <- 1:nrow(df)
@@ -578,6 +580,7 @@ ASE # 0.06421939
 ```
 
 ## Neural Network with Trend, Time and Volume Interaction
+When we added a multiplicative term for trend and volume, our ASE lowered from 0.0642 to 0.0549. Although the Neural Nets that included a trend predictor were very close in terms of residual error, this model produced the lowest ASE.
 ```{r Neural Network with Trend, Time and Volume Interaction, echo=T, warning=F, eval=T}
 df <- stock_data()
 t <- 1:nrow(df)
@@ -606,7 +609,7 @@ ASE # 0.05486796
 
 
 ## Neural Network with Trend, Time and Volume Interaction, Time and OpClo Interaction
-It is important to note that we did not identify an interaction between time and HiLo to benefit the model, but we did find that interaction with OpClo and time to be beneficial for reducing ASE.
+It is important to note that we did not identify an interaction between time and the spread between high and low prices to benefit the model, but we did find that interaction between time and the spread between open and close prices to be beneficial for reducing ASE. However, the overall reduction from this model increased the ASE from 0.0549 in the model using an interaction between only trend and volume to an ASE of 0.0571.
 ```{r Neural Network with Trend, Time and Volume Interaction, Time and OpClo Interaction, echo=T, warning=F, eval=T}
 df <- stock_data()
 t <- 1:nrow(df)
@@ -659,12 +662,9 @@ for (i in 0:(num_batches-1))
   ASEs[i+1] = mean((ts[(length(ts) - 4):length(ts)] - fore.mlp$mean)^2)
   start = start+1
 }
+
 ASEs
 mean(ASEs)
-
-signoise.forecast <- fore.sigplusnoise.wge(df$low, max.p=2, n.ahead=5, limits=T, lastn=T, plot=T)
-SIGNOISE_ASE = mean((df$low[(nrow(df)-5+1):nrow(df)] - signoise.forecast$f)^2)
-SIGNOISE_ASE
 
 ```
 
