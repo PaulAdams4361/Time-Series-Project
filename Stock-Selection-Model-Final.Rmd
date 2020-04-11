@@ -209,9 +209,9 @@ SIGNOISE_ASE # 0.133713
 # ARIMA(p,d,q) Model
 
 In the ARIMA model, we selected a forecast horizon of five trading days because this timeframe completes a full business week. Models
-can be fully re-developed on non-trading days. However, unless there are two unit roots, ARIMA will not have enough precedential autocorrelation in the realization for a forecasted trend to continue. Consequently, it will have no option but to converge toward the mean. Because of the lack of a seasonal component, may not model well. However, as seen with the Signal-Plus-Noise model, the realization's strong signal and weak noise components will work well for an Autoregressive/Moving Average model that tends toward the mean since this is what appears to be guiding the primary growth structure of the share price over time.
+can be fully re-developed on non-trading days. However, unless there are two unit roots, ARIMA will not have enough precedential autocorrelation in the realization for a forecasted trend to continue. Consequently, it will have no option but to converge toward the mean. Because of the lack of a seasonal component, this model may not model well. However, as seen with the Signal-Plus-Noise model, the realization's strong signal and weak noise components will work well for an Autoregressive/Moving Average model that tends toward the mean since this is what appears to be guiding the primary growth structure of the share price over time.
 
-Because of the strong, positive signal of the price over time, the slowly dampening ACFs, and the strongest root in the series being a $(1-B)$, we differenced the data once to stationarize the realization. Following this, we identified the differenced data to be best represented by modelling a with an $AR(5)$ component based on Akaike Information Criterion (AIC) scores. There did not appear to be enough noise in the data to need an MA component. A model was estimated to a $ARMA(0,0)$ - practically, white noise - by the Bayesian Information Criterion score, but because AIC did not suggest this and we identified enough noise to justify modeling, we proceeded with an $AR(5)$ component for the ARMA model.
+Because of the strong, positive signal of the price over time, the slowly dampening ACFs, and the strongest root in the series being a $(1-B)$, we differenced the data once to stationarize the realization. Following this, we identified the differenced data to be best represented by modelling with an $AR(5)$ component based on Akaike Information Criterion (AIC) scores. While this was not the top selected by the algorithm, we tested several lag orders and determined this was the best suited selection and that there was not enough noise in the data to benefit from adding an MA term. A model was estimated to a $ARMA(0,0)$ - practically, white noise - by the Bayesian Information Criterion score, but because AIC did not suggest this and we identified enough noise to justify modeling, we proceeded with an $AR(5)$ component for the ARMA model.
 
 The estimated residuals from the estimated $ARMA(5,0)$ model at $K=24$ lags produced a **p-value**$=0.9405$ that we could not use to reject the null hypothesis, where the null is that the distribution of the residuals of the model are close enough to white noise that we cannot effectively distinguish the difference. Low variance (0.1173) also aided in our conclusion to assume the model represents the data well. We then attempted to identify a new model for the residuals using an AIC score, but the top model provided was a $ARMA(0,0)$. This concluded our model selection analysis for this model.
 
@@ -369,12 +369,12 @@ ASE <- mean((df$low[(nrow(df)-4):nrow(df)] - preds$fcst$y1[,1])^2)
 ASE # 0.1132188
 
 plot(seq(1,100,1), df$low[1:100], type = "l",xlim = c(0,100), xlab = "Trading Days", ylab = "Share Prices", main = "Vector Autoregressive Modeling with Trend", lwd=2)
-lines(seq(96,100,1), preds$fcst$df2.low.i..i....trainingSize...1...[,1], type = "l", col = "red", lwd=2)
+lines(seq(96,100,1), preds$fcst$y1[,1], type = "l", col = "red", lwd=2)
 
 ```
 
 ## Vector Autoregressive Modeling with Trend, Trend and Volume Interaction
-Our VAR model with additive terms for trend, volume, the spread between high and low and open and close prices in addition to a multiplicative term for trend and its impact on volume outperformed all other VAR models we built in terms of ASE. Adding the multiplicative term in this model reduced the ASE to roughly half, from 0.2139 to 0.1296. The Autoregressive lag order identified for the model is an AR(2) with an AIC score of -2.4780.
+Our VAR model with additive terms for trend, volume, the spread between high and low and open and close prices in addition to a multiplicative term for trend and its impact on volume outperformed all other VAR models we built in terms of ASE. Adding the multiplicative term in this model reduced the ASE to roughly half, from 0.2139 to 0.1296. The Autoregressive lag order identified for the model is an AR(2) with an AIC score of -2.4780. This model includes two univariate lags on the univariate input nodes one and two with four exogenous regressor lags across regressor nodes one and two.
 ```{r Vector Autoregressive Modeling with Trend, Time and Volume Interaction, echo=T, warning=F}
 df <- stock_data()
 # First Variable has the "time shift"
@@ -397,8 +397,8 @@ preds <- predict(lsfit, n.ahead=5)
 ASE <- mean((df$low[(nrow(df)-4):nrow(df)] - preds$fcst$y1[,1])^2)
 ASE # 0.1296242
 
-plot(seq(1,100,1), df$low[1:100], type = "l",xlim = c(0,100), xlab = "Trading Days", ylab = "Share Prices", main = "Vector Autoregressive Modeling with Trend", lwd=2)
-lines(seq(96,100,1), preds$fcst$df2.low.i..i....trainingSize...1...[,1], type = "l", col = "red", lwd=2)
+plot(seq(1,100,1), df$low[1:100], type = "l",xlim = c(0,100), xlab = "Trading Days", ylab = "Share Prices", main = "Vector Autoregressive Modeling with Trend and Volume Interaction", lwd=2)
+lines(seq(96,100,1), preds$fcst$y1[,1], type = "l", col = "red", lwd=2)
 
 ```
 
@@ -428,7 +428,7 @@ ASE <- mean((df$low[(nrow(df)-4):nrow(df)] - preds$fcst$y1[,1])^2)
 ASE # 0.1703138
 
 plot(seq(1,100,1), df$low[1:100], type = "l",xlim = c(0,100), xlab = "Trading Days", ylab = "Share Prices", main = "Vector Autoregressive Modeling with Trend", lwd=2)
-lines(seq(96,100,1), preds$fcst$df2.low.i..i....trainingSize...1...[,1], type = "l", col = "red", lwd=2)
+lines(seq(96,100,1), preds$fcst$y1[,1], type = "l", col = "red", lwd=2)
 ```
 
 # Neural Network Models: Multi-Layered Perceptrons
@@ -492,7 +492,7 @@ ASE # 0.06421939
 ```
 
 ## Neural Network with Trend, Time and Volume Interaction
-When we added a multiplicative term for trend and volume, our ASE lowered from 0.0642 to 0.0549. Although the Neural Nets that included a trend predictor were very close in terms of residual error, this model produced the lowest ASE.
+When we added a multiplicative term for trend and volume, our ASE lowered from 0.0642 to 0.0549. Although the Neural Nets that included a trend predictor were very close in terms of residual error, this model produced the lowest ASE. The final model 
 ```{r Neural Network with Trend, Time and Volume Interaction, echo=T, warning=F, eval=T}
 df <- stock_data()
 t <- 1:nrow(df)
