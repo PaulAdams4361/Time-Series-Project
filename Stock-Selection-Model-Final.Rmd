@@ -2,7 +2,9 @@
 title: "Stock-Selection-Analysis"
 author: "Paul Adams & Jeff Nguyen"
 date: "3/17/2020"
-output: html_document
+output: 
+    html_document:
+      toc: TRUE
 ---
 
 ```{r setup, echo=F, warning=F}
@@ -506,8 +508,8 @@ lines(seq(96,100,1), preds$fcst$df2.low.i..i....trainingSize...1...[,1], type = 
 # Neural Network Models
 
 ## Neural Network without Trend
-# Because prices can change quickly from day-to-day and there is considerable time required to calculate rolling averages for competing neural networks (training time is extensive), we did not provide a rolling window ASE.
-```{r Neural Network without Trend, echo=T, warning=F, eval=F}
+Because prices can change quickly from day-to-day and there is considerable time required to calculate rolling averages for competing neural networks (training time is extensive), we did not provide a rolling window ASE.
+```{r Neural Network without Trend, echo=T, warning=F, eval=T}
 df <- stock_data()
 # First Variable has the "time shift"
 ccf(df$volume,df$low, type="correlation") # nothing too significant to warrant lagging volume
@@ -538,7 +540,7 @@ ASEHolder_2 = numeric()
 ```
 
 ## Neural Network with Trend
-```{r Neural Network with Trend, echo=T, warning=F, eval=F}
+```{r Neural Network with Trend, echo=T, warning=F, eval=T}
 df <- stock_data()
 t <- 1:nrow(df)
 # First Variable has the "time shift"
@@ -565,7 +567,7 @@ ASE # 0.06421939
 ```
 
 ## Neural Network with Trend, Time and Volume Interaction
-```{r Neural Network with Trend, Time and Volume Interaction, echo=T, warning=F, eval=F}
+```{r Neural Network with Trend, Time and Volume Interaction, echo=T, warning=F, eval=T}
 df <- stock_data()
 t <- 1:nrow(df)
 # First Variable has the "time shift"
@@ -594,7 +596,7 @@ ASE # 0.05486796
 
 ## Neural Network with Trend, Time and Volume Interaction, Time and OpClo Interaction
 It is important to note that we did not identify an interaction between time and HiLo to benefit the model, but we did find that interaction with OpClo and time to be beneficial for reducing ASE.
-```{r Neural Network with Trend, Time and Volume Interaction, Time and OpClo Interaction, echo=T, warning=F, eval=F}
+```{r Neural Network with Trend, Time and Volume Interaction, Time and OpClo Interaction, echo=T, warning=F, eval=T}
 df <- stock_data()
 t <- 1:nrow(df)
 
@@ -621,14 +623,20 @@ ASE = mean((lowTest - fore.mlp$mean)^2)
 ASE # 0.05711815
 ```
 
-``` {r rolling ASE}
+``` {r rolling ASE, echo=T, warning=F, eval=T}
+df <- stock_data()
 #MLP
 ts = df$low
 batch_size = 91
 start = 1
 num_batches = length(ts)-batch_size+1
 ASEs = numeric(num_batches)
-i=1
+dfTrain <- df[1:(nrow(df)-5),]
+lowTest <- df$low[(nrow(df)-4):nrow(df)] # forecast actuals
+lowTrain <- ts(dfTrain$low) # a training set of the target minus the test forecast
+volumeFull <- ts(df$volume) # the full dataset (train + test) of xreg
+HiLoFull <- ts(df$HiLo) # the full dataset (train + test) of xreg
+OpCloFull <- ts(df$OpClo) # the full dataset (train + test) of xreg
 
 #Rolling ASE
 for (i in 0:(num_batches-1))
@@ -641,48 +649,52 @@ for (i in 0:(num_batches-1))
 ASEs
 mean(ASEs)
 
+signoise.forecast <- fore.sigplusnoise.wge(df$low, max.p=2, n.ahead=5, limits=T, lastn=T, plot=T)
+SIGNOISE_ASE = mean((df$low[(nrow(df)-5+1):nrow(df)] - signoise.forecast$f)^2)
+SIGNOISE_ASE
 
 #Signal + Noise
 df2 <- df[1:(nrow(df)-5),]
 ts = df$low
 t2 = 1:95
-batch_size = 91
+batch_size = 96
 start = 1
+t = 100
 num_batches = length(ts)-batch_size+1
 ASEs = numeric(num_batches)
 
-for (i in 0: (num_batches-1))
+for (i in 0:(num_batches-1))
 {
-  fit <- arima(df2$low, order=c(2,1,1), xreg=cbind(t2, df2$volume, df2$HiLo, df2$OpClo, t2*df2$volume, t2*df2$OpClo))
-  preds <- predict(fit, newxreg=cbind(t[(nrow(df)-4):nrow(df)], df$volume[(nrow(df)-4):nrow(df)], df$HiLo[(nrow(df)-4):nrow(df)], 
-                                      df$OpClo[(nrow(df)-4):nrow(df)], t[(nrow(df)-4):nrow(df)]*df$volume[(nrow(df)-4):nrow(df)],
-                                      t[(nrow(df)-4):nrow(df)]*df$OpClo[(nrow(df)-4):nrow(df)]))
   
-  ASEs[i+1] = mean((df$low[(nrow(df)-4):nrow(df)] - preds$pred)^2)
+  signoise.forecast <- fore.sigplusnoise.wge(df$low[i:(i+(batch_size-1))], max.p=2, n.ahead=5, limits=T, lastn=T, plot=T)
+
+  ASEs[i+1] = mean((df$low[(nrow(df)-4):nrow(df)] - signoise.forecast$f)^2)
 }
+
 ASEs
 mean(ASEs)
 
 
 #ARIMA
 ts = df$low
-batch_size = 91
+batch_size = 95
 start = 1
 num_batches = length(ts)-batch_size+1
 ASEs = numeric(num_batches)
 
-for i in 0: (num_batches-1))
+for (i in 1:5)
 {
   forecasts = fore.aruma.wge(ts[start:(batch_size+i)], phi = c(0.1227,-.1183,.1454,-.2587,.029), d = 1, n.ahead = 5, lastn = TRUE, limits = FALSE)
   ASEs[i+1] = mean((ts[(length(ts) - 4):length(ts)] - forecasts$f)^2)
 }
+
 ASEs
 mean(ASEs)
 
 
 #Ensemble
 mlp_pred = as.numeric(fore.mlp$mean)
-signoise = as.numeric(preds$pred)
+signoise = as.numeric(signoise.forecast$f)
 en_pred = (mlp_pred + signoise)/2
 mean((ts[(length(ts) - 4):length(ts)] - en_pred)^2)
 
