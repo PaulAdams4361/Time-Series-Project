@@ -627,7 +627,7 @@ ASE # 0.05711815
 df <- stock_data()
 #MLP
 ts = df$low
-batch_size = 91
+batch_size = 95
 start = 1
 num_batches = length(ts)-batch_size+1
 ASEs = numeric(num_batches)
