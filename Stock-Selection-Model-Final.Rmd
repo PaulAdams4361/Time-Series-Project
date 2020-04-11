@@ -20,13 +20,11 @@ In this project, we analyze 3,202 stock price and volume data time series traded
 can both introduce artificial seasonality and increased random variation into forecasts. Data was sourced as comma-separated values
 through API from AlphaVantage.
 
-Because of the time constraints involved with directly analyzing each stock, we developed a loop to process through each file, perform
-a linear model on each stock and where the slope for price is positive with a slope greater than 0.04 and the price is within an affordable 
-range - between 5 and 50 dollars per share - we then select that stock to assess if the spectral density indicates any wandering 
-behavior based on a peak at zero and no additional peaks thereafter. Because of this wandering, the sample ACFs were also expected 
-to damp exponentially, indicative of non-stationary behavior, potentially trending behavior. This method allowed us to identify seven potentially ideal stocks for signal-plus-noise modeling with postive, profitable trending. From these 7 stocks, we selected one and modeled it. We chose this stock to model based on the stationarity of the noise around the signal.
-
 # Data Selection
+
+Because of the time constraints involved with directly analyzing each stock's realization, we developed a loop to process through each file, perform a linear model on each stock and where the slope for price is positive with a slope greater than 0.04 and the price is within an affordable range - between 5 and 50 dollars per share - we then select that stock to assess if the spectral density indicates any wandering 
+behavior based on a peak at zero and no additional peaks thereafter. Because of this wandering, the sample ACFs were also expected to damp exponentially, indicative of non-stationary behavior, potentially trending behavior. This method allowed us to identify seven potentially ideal stocks for signal-plus-noise modeling with postive, profitable trending. From these 7 stocks, we selected one and modeled it. We chose this stock to model based on the stationarity of the noise around the signal.
+
 ```{r Stock Selection, echo=T, warning=F, eval=F, fig.cap="Stock Selection"}
 plotts.sample.wge(df$low, trunc=25, arlimits=T)
 files = list.files(path='../Time-Series-Stocks', pattern='*.csv')
@@ -345,26 +343,6 @@ preds <- predict(lsfit, n.ahead=5)
 ASE <- mean((df$low[(nrow(df)-4):nrow(df)] - preds$fcst$y1[,1])^2)
 ASE # 0.2282559
 
-trainingSize = 91
-horizon = 5
-ASEHolder_2 = numeric()
-
-for( i in 1:5)
-{
-  
-  VARselect(df2$low[i:(i + (trainingSize - 1))], lag.max=6, season=NULL, exogen=data.frame(df2$volume[i:(i + (trainingSize - 1))], df2$HiLo[i:(i + (trainingSize - 1))], df2$OpClo[i:(i + (trainingSize - 1))]), type="const") # AIC picked p=1 with AIC -2.3235
-  lsfit <- VAR(y=cbind(df2$low[i:(i + (trainingSize - 1))], df2$volume[i:(i + (trainingSize - 1))], df2$HiLo[i:(i + (trainingSize - 1))], df2$OpClo[i:(i + (trainingSize - 1))]), p=2, type="const")
-  preds <- predict(lsfit, n.ahead=5)
- # forecasts = fore.arma.wge(midterm2020[i:(i + (trainingSize - 1))], phi=phis, theta=thetas, n.ahead=horizon, lastn=F, plot=F)
-  ASE_2 = mean((df$low[(trainingSize + i):(trainingSize + i + (horizon) - 1)] - preds$fcst$y1[,1])^2)
-  
-  ASEHolder_2[i] = ASE_2
-  
-}
-
-WindowedASE_mod2 = mean(ASEHolder_2)
-WindowedASE_mod2 # 0.3102587
-
 plot(seq(1,100,1), df$low[1:100], type = "l", xlim = c(0,100), xlab = "Trading Days", ylab = "Share Prices", main = "Vector Autoregressive Modeling without Trend", lwd=2)
 lines(seq(96,100,1), preds$fcst$y1[,1], type = "l", col = "red", lwd=2)
 
@@ -389,27 +367,6 @@ preds <- predict(lsfit, n.ahead=5)
 
 ASE <- mean((df$low[(nrow(df)-4):nrow(df)] - preds$fcst$y1[,1])^2)
 ASE # 0.1132188
-
-t = 1:100
-trainingSize = 91
-horizon = 5
-ASEHolder_2 = numeric()
-
-for( i in 1:5)
-{
-  
-  VARselect(df2$low[i:(i + (trainingSize - 1))], lag.max=6, season=NULL, exogen=data.frame(t[i:(i + (trainingSize - 1))], df2$volume[i:(i + (trainingSize - 1))], df2$HiLo[i:(i + (trainingSize - 1))], df2$OpClo[i:(i + (trainingSize - 1))]), type="const") # AIC picked p=1 with AIC -2.3235
-  lsfit <- VAR(y=cbind(df2$low[i:(i + (trainingSize - 1))], exogen = data.frame(t[i:(i + (trainingSize - 1))], df2$volume[i:(i + (trainingSize - 1))], df2$HiLo[i:(i + (trainingSize - 1))], df2$OpClo[i:(i + (trainingSize - 1))])), p=1, type="const")
-  preds <- predict(lsfit, n.ahead=5)
-
-  ASE_2 = mean((df$low[(trainingSize + i):(trainingSize + i + (horizon) - 1)] - preds$fcst$df2.low.i..i....trainingSize...1...[,1])^2)
-  
-  ASEHolder_2[i] = ASE_2
-  
-}
-
-WindowedASE_mod2 = mean(ASEHolder_2)
-WindowedASE_mod2 # 0.2139037
 
 plot(seq(1,100,1), df$low[1:100], type = "l",xlim = c(0,100), xlab = "Trading Days", ylab = "Share Prices", main = "Vector Autoregressive Modeling with Trend", lwd=2)
 lines(seq(96,100,1), preds$fcst$df2.low.i..i....trainingSize...1...[,1], type = "l", col = "red", lwd=2)
@@ -440,28 +397,6 @@ preds <- predict(lsfit, n.ahead=5)
 ASE <- mean((df$low[(nrow(df)-4):nrow(df)] - preds$fcst$y1[,1])^2)
 ASE # 0.1296242
 
-t = 1:100
-trainingSize = 91
-horizon = 5
-ASEHolder_2 = numeric()
-
-for( i in 1:5)
-{
-  
-  VARselect(df2$low[i:(i + (trainingSize - 1))], lag.max=6, season=NULL, exogen=data.frame(t[i:(i + (trainingSize - 1))], df2$volume[i:(i + (trainingSize - 1))], df2$HiLo[i:(i + (trainingSize - 1))], df2$OpClo[i:(i + (trainingSize - 1))], ((df2$volume[i:(i + (trainingSize - 1))]) * t[i:(i + (trainingSize - 1))])), type="const") # AIC picked p=2 with AIC -2.44854735
-  lsfit <- VAR(y=cbind(df2$low[i:(i + (trainingSize - 1))], exogen = data.frame(t[i:(i + (trainingSize - 1))], df2$volume[i:(i + (trainingSize - 1))], df2$HiLo[i:(i + (trainingSize - 1))], df2$OpClo[i:(i + (trainingSize - 1))], ((df2$volume[i:(i + (trainingSize - 1))]) * t[i:(i + (trainingSize - 1))]))), p=1, type="const")
-  preds <- predict(lsfit, n.ahead=5)
-
-  ASE_2 = mean((df$low[(trainingSize + i):(trainingSize + i + (horizon) - 1)] - preds$fcst$df2.low.i..i....trainingSize...1...[,1])^2)
-  
-  ASEHolder_2[i] = ASE_2
-  
-}
-
-WindowedASE_mod2 = mean(ASEHolder_2)
-WindowedASE_mod2 # 0.1869798
-
-
 plot(seq(1,100,1), df$low[1:100], type = "l",xlim = c(0,100), xlab = "Trading Days", ylab = "Share Prices", main = "Vector Autoregressive Modeling with Trend", lwd=2)
 lines(seq(96,100,1), preds$fcst$df2.low.i..i....trainingSize...1...[,1], type = "l", col = "red", lwd=2)
 
@@ -491,29 +426,6 @@ preds <- predict(lsfit, n.ahead=5)
 
 ASE <- mean((df$low[(nrow(df)-4):nrow(df)] - preds$fcst$y1[,1])^2)
 ASE # 0.1703138
-
-t = 1:100
-trainingSize = 91
-horizon = 5
-ASEHolder_2 = numeric()
-
-for( i in 1:5)
-{
-  
-  VARselect(df2$low[i:(i + (trainingSize - 1))], lag.max=6, season=NULL, exogen=data.frame(t[i:(i + (trainingSize - 1))], df2$volume[i:(i + (trainingSize - 1))], df2$HiLo[i:(i + (trainingSize - 1))], df2$OpClo[i:(i + (trainingSize - 1))], ((df2$OpClo[i:(i + (trainingSize - 1))]) * t[i:(i + (trainingSize - 1))]),((df2$volume[i:(i + (trainingSize - 1))]) * t[i:(i + (trainingSize - 1))])), type="const")
-  
-  lsfit <- VAR(y=cbind(df2$low[i:(i + (trainingSize - 1))], exogen = data.frame(t[i:(i + (trainingSize - 1))], df2$volume[i:(i + (trainingSize - 1))], df2$HiLo[i:(i + (trainingSize - 1))], df2$OpClo[i:(i + (trainingSize - 1))], ((df2$volume[i:(i + (trainingSize - 1))]) * t[i:(i + (trainingSize - 1))])), ((df2$OpClo[i:(i + (trainingSize - 1))]) * t[i:(i + (trainingSize - 1))])), p=1, type="const")
-  preds <- predict(lsfit, n.ahead=5)
-
-  ASE_2 = mean((df$low[(trainingSize + i):(trainingSize + i + (horizon) - 1)] - preds$fcst$df2.low.i..i....trainingSize...1...[1])^2)
-  
-  ASEHolder_2[i] = ASE_2
-  
-}
-
-WindowedASE_mod2 = mean(ASEHolder_2)
-WindowedASE_mod2 # 0.2288478
-
 
 plot(seq(1,100,1), df$low[1:100], type = "l",xlim = c(0,100), xlab = "Trading Days", ylab = "Share Prices", main = "Vector Autoregressive Modeling with Trend", lwd=2)
 lines(seq(96,100,1), preds$fcst$df2.low.i..i....trainingSize...1...[,1], type = "l", col = "red", lwd=2)
@@ -638,6 +550,8 @@ ASE # 0.05711815
 ```
 
 # Rolling ASEs
+To provide additional analysis for the best models of each category, we have provided below the Average Squared Error from a rolling 5-point forecast window.
+
 ### Rolling ASE for Neural Networks: Multi-Layered Perceptrons
 ``` {r Rolling ASE NN-MLP, echo=T, warning=F, eval=T}
 df <- stock_data()
@@ -646,7 +560,7 @@ ts = df$low
 batch_size = 95
 start = 1
 num_batches = length(ts)-batch_size+1
-ASEs = numeric(num_batches)
+NN_ASEs = numeric(num_batches)
 dfTrain <- df[1:(nrow(df)-5),]
 lowTest <- df$low[(nrow(df)-4):nrow(df)] # forecast actuals
 lowTrain <- ts(dfTrain$low) # a training set of the target minus the test forecast
@@ -659,18 +573,46 @@ for (i in 0:(num_batches-1))
 {
   fit.mlp <- mlp(ts(ts[i:(i+(batch_size-1))]), xreg=data.frame(volumeFull[i:(i+(batch_size-1))], HiLoFull[i:(i+(batch_size-1))], OpCloFull[i:(i+(batch_size-1))]), reps = 15, comb = "mean", hd.auto.type="cv")
   fore.mlp <- forecast(fit.mlp, h=5, xreg=data.frame(volumeFull, HiLoFull, OpCloFull))
-  ASEs[i+1] = mean((ts[(length(ts) - 4):length(ts)] - fore.mlp$mean)^2)
+  NN_ASEs[i+1] = mean((ts[(length(ts) - 4):length(ts)] - fore.mlp$mean)^2)
   start = start+1
 }
 
-ASEs
-mean(ASEs)
+NN_ASEs
+mean(NN_ASEs) # 0.1468514
+
+```
+
+### Rolling ASE for Vector Autoregressive
+```{r Rolling ASE VAR, echo=T, warning=F}
+df <- stock_data()
+df2 <- df[1:(nrow(df)-5),]
+t = 1:100
+trainingSize = 91
+horizon = 5
+ASEHolder_2 = numeric()
+
+for( i in 1:5)
+{
+  
+  VARselect(df2$low[i:(i + (trainingSize - 1))], lag.max=6, season=NULL, exogen=data.frame(t[i:(i + (trainingSize - 1))], df2$volume[i:(i + (trainingSize - 1))], df2$HiLo[i:(i + (trainingSize - 1))], df2$OpClo[i:(i + (trainingSize - 1))], ((df2$volume[i:(i + (trainingSize - 1))]) * t[i:(i + (trainingSize - 1))])), type="const") # AIC picked p=2 with AIC -2.44854735
+  lsfit <- VAR(y=cbind(df2$low[i:(i + (trainingSize - 1))], exogen = data.frame(t[i:(i + (trainingSize - 1))], df2$volume[i:(i + (trainingSize - 1))], df2$HiLo[i:(i + (trainingSize - 1))], df2$OpClo[i:(i + (trainingSize - 1))], ((df2$volume[i:(i + (trainingSize - 1))]) * t[i:(i + (trainingSize - 1))]))), p=1, type="const")
+  preds <- predict(lsfit, n.ahead=5)
+
+  ASE_2 = mean((df$low[(trainingSize + i):(trainingSize + i + (horizon) - 1)] - preds$fcst$df2.low.i..i....trainingSize...1...[,1])^2)
+  
+  ASEHolder_2[i] = ASE_2
+  
+}
+
+rolling_ASE = mean(ASEHolder_2)
+rolling_ASE # 0.1869798
 
 ```
 
 ### Rolling ASE for Signal-Plus-Noise
-```{r echo=T, warning=F}
+```{r Rolling ASE Sig+Noise, echo=T, warning=F}
 #Signal + Noise
+df <- stock_data()
 df2 <- df[1:(nrow(df)-5),]
 ts = df$low
 t2 = 1:95
@@ -678,25 +620,28 @@ batch_size = 96
 start = 1
 t = 100
 num_batches = length(ts)-batch_size+1
-ASEs = numeric(num_batches)
+sigplus_ASEs = numeric(num_batches)
 
 for (i in 0:(num_batches-1))
 {
   
   signoise.forecast <- fore.sigplusnoise.wge(df$low[i:(i+(batch_size-1))], max.p=2, n.ahead=5, limits=T, lastn=T, plot=T)
 
-  ASEs[i+1] = mean((df$low[(nrow(df)-4):nrow(df)] - signoise.forecast$f)^2)
+  sigplus_ASEs[i+1] = mean((df$low[(nrow(df)-4):nrow(df)] - signoise.forecast$f)^2)
 }
 
-ASEs
-mean(ASEs)
+sigplus_ASEs
+
+rolling_ASE_sigplus = mean(sigplus_ASEs)
+rolling_ASE_sigplus # 0.1333858
 
 ```
 
 ### Rolling ASE for ARIMA(5,1,0)
-```{r echo=T, warning=F}
+```{r Rolling ASE for ARIMA(p,d,q), echo=T, warning=F}
 ### Rolling ASE for Neural Networks: Multi-Layered Perceptrons
 #ARIMA
+df <- stock_data()
 ts = df$low
 batch_size = 95
 start = 1
@@ -709,17 +654,27 @@ for (i in 1:5)
   ASEs[i+1] = mean((ts[(length(ts) - 4):length(ts)] - forecasts$f)^2)
 }
 
-ASEs
-mean(ASEs) 
+rolling_ASE = mean(ASEs) 
 
+rolling_ASE #0.3935643
 ```
 
 ### Rolling ASE for Ensemble Model: Signal-Plus-Noise and Multi-Layered Perceptrons
-```{r echo=T, warning=F}
+```{r Rolling ASE for Ensemble, echo=T, warning=F}
 #Ensemble
 mlp_pred = as.numeric(fore.mlp$mean)
+
 signoise = as.numeric(signoise.forecast$f)
+
 en_pred = (mlp_pred + signoise)/2
-mean((ts[(length(ts) - 4):length(ts)] - en_pred)^2)
+
+ASE = mean((ts[(length(ts) - 4):length(ts)] - en_pred)^2)
+ASE # 0.06966031
+
+rolling_ASEs_ensemble = (sigplus_ASEs + NN_ASEs)/2
+rolling_ASEs_ensemble
+
+rolling_ASE_mean_ensemble = mean((sigplus_ASEs + NN_ASEs)/2)
+rolling_ASE_mean_ensemble
 
 ```
