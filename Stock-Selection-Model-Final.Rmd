@@ -13,6 +13,10 @@ p_load(tswge, dplyr, kableExtra, sqldf, ggplot2, orcutt, tswgewrapped, readr, va
 set.seed(39)
 ```
 
+[Project GitHub Repository](https://github.com/PaulAdams4361/Time-Series-Project)
+[Paul Adams Presentation](https://www.youtube.com/watch?v=K7hQufu2mWM)
+[Jeff Nguyen Presentation](https://youtu.be/rNtp4fHCWhw)
+
 # Project Data Description
 
 In this project, we analyze 3,202 stock price and volume data time series traded on the NASDAQ exchange between May 30th and October
@@ -22,8 +26,14 @@ through API from AlphaVantage.
 
 # Data Selection
 
-Because of the time constraints involved with directly analyzing each stock's realization, we developed a loop to process through each file, perform a linear model on each stock and where the slope for price is positive with a slope greater than 0.04 and the price is within an affordable range - between 5 and 50 dollars per share - we then select that stock to assess if the spectral density indicates any wandering 
-behavior based on a peak at zero and no additional peaks thereafter. Because of this wandering, the sample ACFs were also expected to damp exponentially, indicative of non-stationary behavior, potentially trending behavior. This method allowed us to identify seven potentially ideal stocks for signal-plus-noise modeling with postive, profitable trending. From these 7 stocks, we selected one and modeled it. We chose this stock to model based on the stationarity of the noise around the signal.
+Because of the time constraints involved with directly analyzing each stock's realization, we developed a loop to process
+through each file, perform a linear model on each stock and where the slope for price is positive with a slope greater than
+0.04 and the price is within an affordable range - between 5 and 50 dollars per share - we then select that stock to assess
+if the spectral density indicates any wandering behavior based on a peak at zero and no additional peaks thereafter. Because
+of this wandering, the sample ACFs were also expected to damp exponentially, indicative of non-stationary behavior,
+potentially trending behavior. This method allowed us to identify seven potentially ideal stocks for signal-plus-noise modeling
+with postive, profitable trending. From these 7 stocks, we selected one and modeled it. We chose this stock to model based on
+the stationarity of the noise around the signal.
 
 ```{r Stock Selection, echo=T, warning=F, eval=F, fig.cap="Stock Selection"}
 plotts.sample.wge(df$low, trunc=25, arlimits=T)
@@ -55,7 +65,10 @@ for(file in files){
 ```
 
 # Candlestick chart for Exploratory Data Analysis (EDA)
-Because we have a high, low, open, and close price, we wanted to visually inspect the relationship between these prices across each data point. Through this visual inspection, we noticed differing amounts of variation within each price sets across all data points. As a result, we decided to engineer two new features representing the difference between the high and low and open and close prices. These two new features allowed our multivariate modeling to ingest additional insights into the dynamic relationships betweeen prices in our data.
+Because we have high, low, open, and close prices, we wanted to visually inspect the relationship between these across all data
+points once we selected the stock to model. Through this visual assessment, we identified differing amounts of variation within
+each price set across all data points. As a result, we decided to engineer two new features to capture this variation. These
+two new features allowed our multivariate modeling to parameterize additional insights for forecasting development.
 ```{r Candlesticks for Visual Fun, echo=T, warning=F, fig.cap="Candlestick Chart for ACGL"}
 urlfile = "https://raw.githubusercontent.com/PaulAdams4361/Time-Series-Project/master/NASDAQ_Daily_ACGL.csv"
 df <- read_csv(url(urlfile))
@@ -71,10 +84,13 @@ fig
 
 ```
 
-After anlayzing the candlestick plot, we decided to use the low price as the target feature of the model. The reason we chose this is because when a stock is trending up, the low price is quick to point this out because the moving average will often rise above the low price, especially for stronger uptrending behavior. This further provides insight into potential investment profitability.
+After anlayzing the candlestick plot, we decided to use the low price as the target feature of the model. The reason we chose
+this is because when a stock is trending up, the low price is quick to point this out because the moving average will often
+rise above the low price, especially for stronger uptrending behavior. This further provides insight into potential investment
+profitability.
 
 Below are functions for data portability throughout the project. These are the two source data sets we will use.
-```{r Custom Project DataFrame, echo=T, warning=F, fig.cap="Signal-Plus-Noise Model"}
+```{r Custom Project DataFrame1, echo=T, warning=F, results='hide', message=F, include=F}
 
 stock_data <- function(x){
   urlfile="https://raw.githubusercontent.com/PaulAdams4361/Time-Series-Project/master/NASDAQ_Daily_ACGL.csv"
@@ -93,7 +109,15 @@ stock_data <- function(x){
 }
 
 df <- stock_data()
+```
 
+### Sample plot of original low price data
+```{r sample plots orig data1, echo=T, warning=F}
+plotts.sample.wge(df$low, arlimits=T)
+```
+
+
+```{r Custom Project DataFrame2, echo=T, warning=F, results='hide', message=F, include=F}
 stock_data_trans <- function(x){
   urlfile="https://raw.githubusercontent.com/PaulAdams4361/Time-Series-Project/master/NASDAQ_Daily_ACGL.csv"
   df <- read_csv(url(urlfile))
@@ -115,13 +139,25 @@ stock_data_trans <- function(x){
 
 dftrans <- stock_data_trans()
 ```
+
+### Sample plot of once-differenced low price data
+```{r sample plots orig data, echo=T, warning=F}
+plotts.sample.wge(dftrans$low, arlimits=T)
+```
 # Signal-Plus-Noise Model
 
-In this Signal-Plus-Noise model, we perform a hypothesis test on the linear trend to identify using OLS if the trend is possibly deterministic. After positive confirmation from OLS, we then tested this with the Cochrane-Orcutt $AR(1)$ based hypothesis test, which accounts for serial correlation in determining slope significance. This test also confirmed the signal is a deterministic trend.
+In this Signal-Plus-Noise model, we perform a hypothesis test on the linear trend to identify using OLS if the trend is
+possibly deterministic. After positive confirmation from OLS, we then tested this with the Cochrane-Orcutt $AR(1)$ based
+hypothesis test, which accounts for serial correlation in determining slope significance. This test also confirmed the signal
+is a deterministic trend.
 
-Next, we removed the residuals from the trend line and built a model for this data. We then tested the residuals for white noise variance using the Ljung-Box test, which indicated there is not enough evidence to consider the residuals to be more than white noise. Because of the stationarity of the residuals, we were able to estimate a model using the linear slope and adding to it the variation of the residuals.
+Next, we removed the residuals from the trend line and built a model for this data. We then tested the residuals for white
+noise variance using the Ljung-Box test, which indicated there is not enough evidence to consider the residuals to be more than
+white noise. Because of the stationarity of the residuals, we were able to estimate a model using the linear slope and adding
+to it the variation of the residuals.
 
-Forecasting error was measured in terms of Average Squared Error using the last trading week's data points, for which there were five. The ASE was 0.1654078.
+Forecasting error was measured in terms of Average Squared Error using the last trading week's data points, for which there
+were five. The ASE was 0.1654078.
 
 ```{r Signal-Plus-Noise Model, echo=T, warning=F, fig.cap="Signal-Plus-Noise Model"}
 df <- stock_data()
@@ -136,6 +172,10 @@ x = df$low
 n = length(x)
 t = 1:n
 fit = lm(x ~ t)
+```
+
+### Ordinary Least Squares Estimation of Original Data for Assessing Linear Trend
+```{r OLS Output, echo=T, warning=F}
 summary(fit) # there appears to be deterministic trend based on OLS; the p-value is significant so reject the null that it is not
 # deterministic. The null argues that any present trend is random that will eventually traverse such a pattern that the realization 
 # will continue to approximate around the mean. 
@@ -143,87 +183,183 @@ summary(fit) # there appears to be deterministic trend based on OLS; the p-value
 # Because OLS is not robust to non-stationarity, we apply the Cochrane-Orcutt test to also test the beta coefficient slope of time
 # using an aproach that fits an AR(1) model to the residuals:
 cfit = cochrane.orcutt(fit) # to confirm with chochrane-orcutt
+```
+
+### Cochrane-Orcutt Hypothesis Test of Original Data for Assessing Linear Trend
+```{r Cochrane-Orcutt, echo=T, warning=F}
 summary(cfit) # Cochran-Orcutt also provides a significant p-value. Based on this, we assume the slope is not equal to zero and
 # therefore, there is deterministic that justifies fitting a signal-plus-noise model instead of an ARMA(p,q). However, ARMA(p,q)
 # will be fitted later for comparison.
 
 #x.z = x - fit$coefficients[1] - fit$coefficients[2]*t # derive residuals
-x.z = fit$residuals # derive residuals (from the regression line)
-ar.z = aic.wge(x.z, p=0:6, type="aic") # find a model to use for approximating the residuals. NOTE: (sigmaHAT_a)^2 = 0.1177843
-# ar.z$p is the order p (aic selects p=2 where q=0, as does the bic)
+```
 
+### Model Estimate for Noise Component of Signal-Plus-Noise Model
+```{r resids-model, echo=T, warning=F}
+x.z <- fit$residuals # derive residuals (from the regression line)
+ar.z <- aic.wge(x.z, p=0:6, type="aic") # find a model to use for approximating the residuals. NOTE: (sigmaHAT_a)^2 = 0.1177843
+# ar.z$p is the order p (aic selects p=2 where q=0, as does the bic)
+ar.z
+
+```
+
+
+```{r AR of Fitted Resids, echo=T, warning=F, results='hide', message=F, include=F}
 # Transform the stock prices by the autoregressive coefficients of the fitted residuals from the linear regression model. 
 # Remove phi from residuals to remove serial correlation and allow us to model
-y.trans = artrans.wge(df$low, phi.tr=ar.z$phi)
+y.trans <- artrans.wge(df$low, phi.tr=ar.z$phi)
 # also, transform the predictor variable (time) by the autogregressive coefficeints of the fitted residuals as well
-t.trans  = artrans.wge(t, phi.tr=ar.z$phi)
+t.trans  <- artrans.wge(t, phi.tr=ar.z$phi)
 # Finally, regress the newly transformed stock prices (Y-HAT_t) on the transformed time (T-HAT_t)using ordinary least squares
-fitco = lm(y.trans ~ t.trans)
+fitco <- lm(y.trans ~ t.trans)
+```
+
+### Transforming Price Using Autoregressive Coefficients of Fitted Residuals
+```{r summarize fitco}
 summary(fitco) # check to see if the transformed beta coefficient for the slope is still significant
+```
 
+### Exploring Signal-Plus-Noise Model Residuals
+The residuals visually appear to be close to white noise. The data points all center around the mean, which no longer appears to depend on time. However, there does not appear to be a finite, constant variance; it seems that at least a few points have a covariance structure that also appears to depend on time.
+```{r Plotting Fitted Resids1, echo=T, warning=F}
 # Evaluating the residuals after Cochrane-Orcutt:
-plotts.wge(fitco$residuals)
-acf(fitco$residuals) # residuals appear to be white noise
+plotts.sample.wge(fitco$residuals, arlimits=T) # residuals appear to be white noise
+```
 
-ljung.wge(fitco$residuals) # there is not enough evidence based on the ljung-box test to reject the null hypothesis. Therefore, 
-# we cannot assume that the residuals are not white noise.
-
+### Ljung-Box Hypothesis Test for White Noise Variance
+There is not enough evidence based on the Ljung-Box test to reject the null hypothesis. Therefore, we reject the null hypothesis and do not assume the residuals are white noise.
+```{r ljung-box test for wnv, echo=T, warning=F}
+ljung.wge(fitco$residuals)
 # Final Signal-Plus-Noise Model: X_t = 34.855438 + 0.072922*t + Z_t, (sigmaHAT_a)^2 = 0.1177843 summary(fit = lm(x ~ t))
 # creates the coefficients
-ar.z$phi
 # (1 - 1.0533533*B + 0.3193699*B^2)*Z_t = a__t. ar.z$phi from AR(2) creates the coeffients and (sigmaHAT_a)^2 = 0.1177843
+```
+
+### Model Estimated form the Signal-Plus-Noise Residuals:D AR(2)
+$(1 - 1.0533533B + 0.3193699B^2)Z_{t} = a_{t}, \hat{\sigma}^2=0.1177843$
+```{r modeling residuals, echo=T, warning=F}
+ar.z
+```
+
+
+### Estimated Model Sample Plots of Realization, Autocorrelation, and Spectral Density
+First, we generated a realization using 100 random data points generated from the AR(p) model we estimated for the residuals and their variance along with the linear model's intercept and slope coefficients.
+```{r est model sample plots1, echo=T, warning=F, results='hide', message=F, include=F}
 
 # BUT, TO REITERATE: Final Signal-Plus-Noise Model is X_t = 34.855438 + 0.072922*t + Z_t, (sigmaHAT_a)^2 = 0.1177843
-est_mod = gen.sigplusnoise.wge(100, b0=34.855438, b1 = 0.072922, phi=ar.z$phi, vara=0.1177843)
-plotts.sample.wge(est_mod)
-plotts.sample.wge(df$low) # the estimated model (above) matches to the actual model (here) on both sample ACFs and sample spectral
-# density as well as on partial ACF (below):
-pacf(est_mod)
-pacf(df$low)
+est_mod <- gen.sigplusnoise.wge(100, b0=34.855438, b1 = 0.072922, phi=ar.z$phi, vara=0.1177843)
 
+```
+
+### Signal-Plus-Noise Model Comparison
+We visualized the estimated realization's ACF and Spectral Density plots using the tswge package below.
+
+Estimated Model:
+```{r est model sample plots, echo=T, warning=F}
+plotts.sample.wge(est_mod, arlimits=T)
+```
+
+Then, we compared the sample plots to those for the original data, visually comparing to see if the estimated ACF and Spectral Density plots match between the two time series. Because they do, the model is a reasonable fit.
+
+Estimated Data:
+```{r original sample plots, echo=T, warning=F}
+
+plotts.sample.wge(df$low, arlimits=T) # the estimated model (above) matches to the actual model (here) on both sample ACFs and sample spectral
+# density as well as on partial ACF (below):
+```
+
+We then compared the Partials ACF plots between the two time series to again visually inspect if the two approximate each other.
+
+Estimated Model:
+```{r est sample plots, echo=T, warning=F}
+pacf(est_mod)
+```
+
+Original Data:
+```{r orig sample plots, echo=T, warning=F}
+pacf(df$low)
+```
+
+We then permutated this by looping the plots for both realizations twice. However, we suppressed this output to limit excess printout into the documentation. Please refer to the appendix for their actual outputs.
+```{r matching plots sig plus noise, echo=T, warning=F, results='hide', message=F, include=F}
 #########################################################################################################
 ############### Confirmation for repeated model visualization of ACF and Spectral Density ###############
 #########################################################################################################
+df <- stock_data()
+
+# take a sample of the data, analyze
+# plotts.sample.wge(df$low, arlimits=T)
+
+####################
+# Signal-Plus-Noise
+####################
+x = df$low
+n = length(x)
+t = 1:n
+fit = lm(x ~ t)
+
+x.z <- fit$residuals # derive residuals (from the regression line)
+ar.z <- aic.wge(x.z, p=0:6, type="aic")
+est_mod <- gen.sigplusnoise.wge(100, b0=34.855438, b1 = 0.072922, phi=ar.z$phi, vara=0.1177843)
+
 for( i in 1: 5)
 {
-   SpecDen2 = parzen.wge(gen.sigplusnoise.wge(100, b0=34.855438, b1 = 0.072922, phi=ar.z$phi, vara=0.1177843), plot = T)
+   SpecDen2 <- parzen.wge(gen.sigplusnoise.wge(100, b0=34.855438, b1 = 0.072922, phi=ar.z$phi, vara=0.1177843), plot = T)
    lines(SpecDen2$freq,SpecDen2$pzgram, lwd = 2, col = "red")
 }
 
 for( i in 1: 5)
 {
-   ACF2 = acf(gen.sigplusnoise.wge(100, b0=34.855438, b1 = 0.072922, phi=ar.z$phi, vara=0.1177843), plot = T)
+   ACF2 <- acf(gen.sigplusnoise.wge(100, b0=34.855438, b1 = 0.072922, phi=ar.z$phi, vara=0.1177843), plot = T)
    lines(ACF2$lag ,ACF2$acf, lwd = 2, col = "red")
 }
 #########################################################################################################
 #########################################################################################################
 #########################################################################################################
-
 signoise.forecast <- fore.sigplusnoise.wge(df$low, max.p=2, n.ahead=5, limits=T, lastn=T, plot=T)
 SIGNOISE_ASE = mean((df$low[(nrow(df)-5+1):nrow(df)] - signoise.forecast$f)^2)
+```
+
+### Signal-Plus-Noise Forecast ASE
+```{r SigPlusNoise ASE, echo=T, warning=F}
 SIGNOISE_ASE # 0.133713
-
-
 ```
 
 # ARIMA(p,d,q) Model
 
-In the ARIMA model, we selected a forecast horizon of five trading days because this timeframe completes a full business week. Models
-can be fully re-developed on non-trading days. However, unless there are two unit roots, ARIMA will not have enough precedential autocorrelation in the realization for a forecasted trend to continue. Consequently, it will have no option but to converge toward the mean. Because of the lack of a seasonal component, this model may not model well. However, as seen with the Signal-Plus-Noise model, the realization's strong signal and weak noise components will work well for an Autoregressive/Moving Average model that tends toward the mean since this is what appears to be guiding the primary growth structure of the share price over time.
+In the ARIMA model, we selected a forecast horizon of five trading days because this timeframe completes a full business week. Models can be fully re-developed on non-trading days. However, unless there are two unit roots, ARIMA will not have enough
+precedential autocorrelation in the realization for a forecasted trend to continue. Consequently, it will have no option but to
+converge toward the mean. Because of the lack of a seasonal component, this model may not model well. However, as seen with the
+Signal-Plus-Noise model, the realization's strong signal and weak noise components will work well for an Autoregressive/Moving
+Average model that tends toward the mean since this is what appears to be guiding the primary growth structure of the share
+price over time.
 
-Because of the strong, positive signal of the price over time, the slowly dampening ACFs, and the strongest root in the series being a $(1-B)$, we differenced the data once to stationarize the realization. Following this, we identified the differenced data to be best represented by modelling with an $AR(5)$ component based on Akaike Information Criterion (AIC) scores. While this was not the top selected by the algorithm, we tested several lag orders and determined this was the best suited selection and that there was not enough noise in the data to benefit from adding an MA term. A model was estimated to a $ARMA(0,0)$ - practically, white noise - by the Bayesian Information Criterion score, but because AIC did not suggest this and we identified enough noise to justify modeling, we proceeded with an $AR(5)$ component for the ARMA model.
+Because of the strong, positive signal of the price over time, the slowly dampening ACFs, and the strongest root in the series
+being a $(1-B)$, we differenced the data once to stationarize the realization. Following this, we identified the differenced
+data to be best represented by modelling with an $AR(5)$ component based on Akaike Information Criterion (AIC) scores. While
+this was not the top selected by the algorithm, we tested several lag orders and determined this was the best suited selection
+and that there was not enough noise in the data to benefit from adding an MA term. A model was estimated to a $ARMA(0,0)$ -
+practically, white noise - by the Bayesian Information Criterion score, but because AIC did not suggest this and we identified
+enough noise to justify modeling, we proceeded with an $AR(5)$ component for the ARMA model.
 
-The estimated residuals from the estimated $ARMA(5,0)$ model at $K=24$ lags produced a **p-value**$=0.9405$ that we could not use to reject the null hypothesis, where the null is that the distribution of the residuals of the model are close enough to white noise that we cannot effectively distinguish the difference. Low variance (0.1173) also aided in our conclusion to assume the model represents the data well. We then attempted to identify a new model for the residuals using an AIC score, but the top model provided was a $ARMA(0,0)$. This concluded our model selection analysis for this model.
+The estimated residuals from the estimated $ARMA(5,0)$ model at $K=24$ lags produced a **p-value**$=0.9405$ that we could not
+use to reject the null hypothesis, where the null is that the distribution of the residuals of the model are close enough to
+white noise that we cannot effectively distinguish the difference. Low variance (0.1173) also aided in our conclusion to assume
+the model represents the data well. We then attempted to identify a new model for the residuals using an AIC score, but the top
+model provided was a $ARMA(0,0)$. This concluded our model selection analysis for this model.
 
-Finally, we generated realizations using 99 data points (99 because the difference removed one from the original 100 points) and the estimated model parameters. The spectral density and autocorrelation function plots appeared to match closely to those of the original realization, sugged toward the long-run series mean.
+Finally, we generated realizations using 99 data points (99 because the difference removed one from the original 100 points)
+and the estimated model parameters. The spectral density and autocorrelation function plots appeared to match closely to those
+of the original realization, sugged toward the long-run series mean.
 
-In forecasting with the estimated $ARIMA(5,1,0)$, the results were well placed with an Average Squared Error (ASE) of 0.2026529. While the model performed well over a 5-point forecast, this model would most likely tend back toward the long-run mean with a larger forecast horizon.
+In forecasting with the estimated $ARIMA(5,1,0)$, the results were well placed with an Average Squared Error (ASE) of
+0.2026529. While the model performed well over a 5-point forecast, this model would most likely tend back toward the long-run
+mean with a larger forecast horizon.
 
-```{r ARIMA(p,d,q) Model, echo=T, warning=F, fig.cap="ARIMA(p,d,q) Model"}
+### Estimated ARMA Factor Table with Model Output
+First, we need to get an understanding of the estimated polynomial factor terms of the realization to understand differencing requirements or if there are seasonal components.
+```{r ARIMA(p,d,q) Model estimate arma, echo=T, warning=F, fig.cap="ARIMA(p,d,q) Model"}
 df <- stock_data()
-
-# take a sample of the data, analyze
-plotts.sample.wge(df$low, arlimits=T)
 
 ###########################################################
 ########################################################### ARMA/ARIMA
@@ -235,12 +371,38 @@ est.arma.wge(df$low, p=8, q=3) # the factor table for df$low provides one (1-B) 
 # on the specified wandering and the damping sample autocorrelations. When using an overfit table, there was a factor close
 # to (1-b)^2, but it was not very significant (third most significant using estimated_arma <- est.arma.wge(dftrans, p=15, q=1))
 # so we decided to only use a first difference.
+```
 
+There are no seasonal components, but the $(1-B)$ factor indicates differencing once would likely stationarize the data enough to model it with AR/MA terms.
+```{r ARIMA(p,d,q) Model difference once, echo=T, warning=F, results='hide', message=F, include=F}
 dftrans <- artrans.wge(df$low, phi.tr=1)
-pacf(dftrans)
-aic5.wge(dftrans, type="aic") # AIC = -2.001944. p=5, q=0
+```
+
+Differenced data sample plots
+```{r ARIMA(p,d,q) Model difference once1, echo=T, warning=F}
+plotts.sample.wge(dftrans, arlimits=T)
+```
+
+AIC5 model identification
+```{r ARIMA(p,d,q) Model difference once2, echo=T, warning=F}
+aic5.wge(dftrans, type="aic")
+# AIC = -2.001944. p=5, q=0
+```
+
+AR(p) model estimation
+```{r ARIMA(p,d,q) Model difference once3, echo=T, warning=F}
 estimated_arma <- est.arma.wge(dftrans, p=5, q=0)
-estimated_arma$phi
+estimated_arma
+```
+
+### ARIMA(p,d,q) in Backshift Notation, Unfactored & Factored:
+$(1-B)(1-0.12269667B+0.11827203B^2+0.14543411B^3+0.25874556B^4-0.02916165B^5)(X_t + 38.53802) = a_t$, where $\hat{\sigma}_{a}^2 = 0.1240151$
+$=$
+$(1-1.12269667B+0.00442464B^2+0.26370614B^3+0.11331145B^4-0.28790721B^5+0.02916165B^6)(X_t + 38.53802) = a_t$ where $ \hat{\sigma}_a^2 = 0.1240151$
+
+### Quantifying Residuals of ARIMA(5,1,0)
+The Ljung-Box test indicates the residuals are very similar to white noise, indicating there is potentially a good fit by the ARIMA(p,d,q)
+```{r ARIMA(p,d,q) Model difference once4, echo=T, warning=F}
 #estimated_arma <- est.arma.wge(dftrans, p=15, q=1)
 ljung.wge(estimated_arma$res, p=5, q=0) # suggests there is no serial correlation in the residuals of the model; this is a good fit.
 
@@ -248,35 +410,62 @@ estimated_arma$avar # 0.1240151
 mean(df$low) # 38.53802
 # (1-B)(1-0.12269667B+0.11827203B^2+0.14543411B^3+0.25874556B^4-0.02916165B^5)*(X_t + 38.53802) = a_t, (sigma-hat_a)^2 = 0.1240151
 # (1-1.12269667B+0.00442464B^2+0.26370614B^3+0.11331145B^4-0.28790721B^5+0.02916165B^6)*(X_t + 38.53802) = a_t, (sigma-hat_a)^2 = 0.1240151
+```
 
+
+### Plotting Residuals of ARIMA(p,d,q)
+```{r ARIMA(p,d,q) Plotting Residuals, echo=T, warning=F}
 ######
 ###### Plotting residuals
 
 # the residuals of the model do not appear correlated. The sample autocorrelation and partial autocorrelation plots indicate 
 # stationarity across all lags with all lags measured within the 5% limits
 plotts.sample.wge(estimated_arma$res, arlimits=T)
+```
+
+### ACF and PACF Plots for ARIMA(p,d,q) Residuals
+```{r ARIMA(p,d,q) Plotting Residuals1, echo=T, warning=F}
 par(mfrow=c(3,1))
 plot(estimated_arma$res, ylab="ARIMA Residuals", xlab = "Trading Days", main = "ARIMA(5,1,1) Model Residuals over Time", lwd=2, type="l")
 abline(h=mean(estimated_arma$res), col="blue")
 acf(estimated_arma$res) # this seems to be white noise; all lags are within the 5% limits
 pacf(estimated_arma$res) # this seems to be white noise; all lags are within the 5% limits
+```
+
+### Esimated White Noise Model for ARIMA(p,d,q) Residuals
+```{r ARIMA(p,d,q) Plotting Residuals2, echo=T, warning=F}
 aic5.wge(estimted_arma$res, type="aic") # White noise is the top model selected for the residuals, by AIC (ARMA(0,0))
 ######
 ######
 
 ######
 ###### Compare estimated model to differenced data
+```
 
+### ARIMA(p,d,q) Model Comparison
+After estimating the model we will use for forecasting, we generated 99 random data points (99 because the 100 data points were differenced once, removing a point) using an non-seasonal ARIMA(p,d,q). We then compared the ACF and Spectral Density plots to those of the original data. A match on these will indicate a potentially good fit.
+
+Estimated Model:
+```{r ARIMA(p,d,q) Estimated Model Plots, echo=T, warning=F}
 # We generated a model of 99 data points using the ARMA(5,1) identified by aic5 with a variance equal to that estimated from the
 # differenced data, which is 0.1172604 (select to see origin highlighted above)
 est_mod <- gen.aruma.wge(99, phi=estimated_arma$phi, theta=estimated_arma$theta, d=1, vara=estimated_arma$avar, sn=40)
 plotts.sample.wge(est_mod, arlimits=T) # estimated model
+```
+
+Original Data:
+```{r ARIMA(p,d,q) Original Data Plots, echo=T, warning=F}
 plotts.sample.wge(df$low, arlimits=T) # estimated model
+```
 
 
+We then permutated the plots to assess over multiple estimated model random generations. The output has been suppressed here, but is displayed in the appendix.
+```{r ARIMA(p,d,q) Repeated compares1, echo=T, warning=F, results='hide', message=F, include=F}
 #################################################################################################################################################
 ############### Confirmation that repeated estimated model visualizations of ACF and Spectral Density match that of original data ###############
 #################################################################################################################################################
+df <- stock_data()
+estimated_arma <- est.arma.wge(dftrans, p=5, q=0)
 
 for(i in 1:2)
 {
@@ -297,76 +486,106 @@ for(i in 1:2)
 # after comparing sample spectral density and ACF plots, we comapred the AIC-estimated models to compare identified models
 aic5.wge(dftrans)
 aic5.wge(est_mod2) # ARMA(5,0) and ARMA(5,1) are top in both models, indicating a potentially useful model..
-
-######
-######
-
-######
-###### Forecast and Measure Average Squared Errors (ASE)
-
-# Model Forecast and ASE
-# Forecasting the differenced data using the parameters estimated from it (we do not apply a d=1)
 nonseasonal.forecast <- fore.aruma.wge(df$low, phi=estimated_arma$phi, theta=estimated_arma$theta, d=1,n.ahead=5, lastn=T)
 ARIMA_ASE = mean((df$low[(nrow(df)-5+1):nrow(df)] - nonseasonal.forecast$f)^2)
+######
+######
+```
+
+### ARIMA(p,d,q) Forecast ASE
+```{r ARIMA ASE, echo=T, warning=F}
+######
+###### Forecast and Measure Average Squared Errors (ASE)
+# Model Forecast and ASE
+# Forecasting the differenced data using the parameters estimated from it (we do not apply a d=1)
 ARIMA_ASE# 0.2026529
 ######
 ######
 ```
 
 # Multivariate Regression Time Series Modeling
-Following the univariate modeling of this time series, we decided to enhance our model with multivariate factors, both additive and multiplicative. As previously mentioned, based on the candlestick plot we created for exploratory data analysis, we were interested in exploring the relationship of the ranges of open to close and high to low prices as related to the low price. The features we engineered for this aided in describing the data and enhancing the models.
+Following the univariate modeling of this time series, we decided to enhance our model with multivariate factors, both additive
+and multiplicative. As previously mentioned, based on the candlestick plot we created for exploratory data analysis, we were
+interested in exploring the relationship of the ranges of open to close and high to low prices as related to the low price. The
+features we engineered for this aided in describing the data and enhancing the models.
 
-The multivariate models applied include Vector Autoregressive and Neural Network with Multi-Layer Perceptron (MLP) models, in addition to an ensemble model combining the forecasts of the univariate Signal-Plus-Noise and the multivariate MLP model. The ASE scores for all multivariate models outperformed all univariate models. However, an ensemble of Signal-Plus-Noise and the MLP model provides a safeguard of overfitting from a multivariate model given the dependency on additional variables that can change significantly very quickly, disrupting a complex forecast.
+The multivariate models applied include Vector Autoregressive and Neural Network with Multi-Layer Perceptron (MLP) models, in
+addition to an ensemble model combining the forecasts of the univariate Signal-Plus-Noise and the multivariate MLP model. The
+ASE scores for all multivariate models outperformed all univariate models. However, an ensemble of Signal-Plus-Noise and the
+MLP model provides a safeguard of overfitting from a multivariate model given the dependency on additional variables that can
+change significantly very quickly, disrupting a complex forecast.
 
 # Vector Autoregressive Modeling
 
 ## Vector Autoregressive Modeling without Trend
-The vector Autoregressive (VAR) models used take all 75 points of the training data - including for the exogenous variables - to bulid a model. We forecasted 5 data points ahead from this trainin set of 95 out of 100 data points and then generated the overall ASE and the 5-point rolling window ASE for model comparison.
+The vector Autoregressive (VAR) models used take all 75 points of the training data - including for the exogenous variables -
+to bulid a model. We forecasted 5 data points ahead from this trainin set of 95 out of 100 data points and then generated the
+overall ASE and the 5-point rolling window ASE for model comparison.
 
 The autoregressive model identifed is an AR(2) with an AIC score of -2.4212.
-```{r Vector Autoregressive Modeling without Trend, echo=T, warning=F}
+```{r Vector Autoregressive Modeling without Trend data import, echo=T, warning=F, results='hide', message=F, include=F}
 df <- stock_data()
-plotts.sample.wge(df$volume, arlimits=T)
+```
+
+We then performed lag analysis using the cross-correlation plots to determine if variables should be lagged. There did not appear to be strong evidence suggesting variables should be lagged respective of the repsonse. Furthermore, there did not appear to be a gross violation of the limits within the ACFs either, suggesting the data is reasonably stationary. This information is useful for all downstream multivariate forecasting.
+```{r Variable Lag Analysis, echo=T, warning=F}
 # First Variable has the "time shift"
+par(mfrow=c(3,1))
 ccf(df$volume,df$low, type="correlation") # nothing too significant to warrant lagging volume
 ccf(df$HiLo,df$low, type="correlation") # no strong cross-correlation
 ccf(df$OpClo,df$low, type="correlation") # Open-Close does not require lagging.
+```
 
+
+The first VAR model recommended an AR(5) component
+```{r Vector Autoregressive Modeling without Trend, echo=T, warning=F}
 df2 <- df[1:(nrow(df)-5),]
-
 VARselect(df2$low, lag.max=6, season=NULL, exogen=data.frame(df2$volume, df2$HiLo, df2$OpClo), type="const") # AIC picked p=1 with AIC -2.3235
 
+```
+
+# The ASE for this model is 0.2283
+```{r Vector Autoregressive Modeling without Trend1, echo=T, warning=F}
 lsfit <- VAR(y=cbind(df2$low, df2$volume, df2$HiLo, df2$OpClo), p=2, type="const") # with p=5, this will estimate the coefficients for lag 5
 
 preds <- predict(lsfit, n.ahead=5)
 
 ASE <- mean((df$low[(nrow(df)-4):nrow(df)] - preds$fcst$y1[,1])^2)
 ASE # 0.2282559
+```
 
-plot(seq(1,100,1), df$low[1:100], type = "l", xlim = c(0,100), xlab = "Trading Days", ylab = "Share Prices", main = "Vector Autoregressive Modeling without Trend", lwd=2)
+Plotting the forecast
+```{r Vector Autoregressive Modeling without Trend2, echo=T, warning=F}
+plot(seq(1,100,1), df$low[1:100], type = "l", xlim = c(0,100), xlab = "Trading Days", ylab = "Share Prices", lwd=2)
 lines(seq(96,100,1), preds$fcst$y1[,1], type = "l", col = "red", lwd=2)
 
 ```
 
 ## Vector Autoregressive Modeling with Trend
-In the VAR model with trend, we introduce a time component into the model as an additive predictor term. The model identifed is an AR(2) with an AIC score of -2.4985.
-```{r Vector Autoregressive Modeling with Trend, echo=T, warning=F}
+```{r Vector Autoregressive Modeling with Trend3, echo=T, warning=F, results='hide', message=F, include=F}
 df <- stock_data()
-plotts.sample.wge(df$volume, arlimits=T)
-# First Variable has the "time shift"
-ccf(df$volume,df$low, type="correlation") # nothing too significant to warrant lagging volume
-ccf(df$HiLo,df$low, type="correlation") # no strong cross-correlation
-ccf(df$OpClo,df$low, type="correlation") # Open-Close does not require lagging.
+```
 
+In the VAR model with trend, we introduce a time component into the model as an additive predictor term. The model identifed
+is an AR(2) with an AIC score of -2.499.
+```{r Vector Autoregressive Modeling with Trend4, echo=T, warning=F}
 df2 <- df[1:(nrow(df)-5),] 
 t <- 1:100
 # Because of the white noise cross-correlation between all exogenous variables and the response variable, it's reasonable to expect only an AR(1) from VARselect. The model will quickly approximate the signal's mean without much sensitivity to change.
 VARselect(df2$low, lag.max=6, season=NULL, exogen=data.frame(t[1:95], df2$volume, df2$HiLo, df2$OpClo), type="const") # AIC:  p=1 with AIC -2.3158
+```
+
+# The ASE for this model is 0.1132
+```{r Vector Autoregressive Modeling without Trend5, echo=T, warning=F}
 lsfit <- VAR(y=cbind(df2$low, t[1:95], df2$volume, df2$HiLo, df2$OpClo), p=1, type="const") # with p=1, this will estimate the coefficients for lag 1
 preds <- predict(lsfit, n.ahead=5)
 
 ASE <- mean((df$low[(nrow(df)-4):nrow(df)] - preds$fcst$y1[,1])^2)
 ASE # 0.1132188
+```
+
+Plotting the forecast
+```{r Vector Autoregressive Modeling without Trend6, echo=T, warning=F}
 
 plot(seq(1,100,1), df$low[1:100], type = "l",xlim = c(0,100), xlab = "Trading Days", ylab = "Share Prices", main = "Vector Autoregressive Modeling with Trend", lwd=2)
 lines(seq(96,100,1), preds$fcst$y1[,1], type = "l", col = "red", lwd=2)
@@ -374,14 +593,18 @@ lines(seq(96,100,1), preds$fcst$y1[,1], type = "l", col = "red", lwd=2)
 ```
 
 ## Vector Autoregressive Modeling with Trend, Trend and Volume Interaction
-Our VAR model with additive terms for trend, volume, the spread between high and low and open and close prices in addition to a multiplicative term for trend and its impact on volume outperformed all other VAR models we built in terms of ASE. Adding the multiplicative term in this model reduced the ASE to roughly half, from 0.2139 to 0.1296. The Autoregressive lag order identified for the model is an AR(2) with an AIC score of -2.4780. This model includes two univariate lags on the univariate input nodes one and two with four exogenous regressor lags across regressor nodes one and two.
+Our VAR model with additive terms for trend, volume, the spread between high and low and open and close prices in addition to a
+multiplicative term for trend and its impact on volume outperformed all other VAR models we built in terms of ASE. Adding the
+multiplicative term in this model reduced the ASE to roughly half, from 0.2139 to 0.1296. The Autoregressive lag order
+identified for the model is an AR(2) with an AIC score of -2.4780. This model includes two univariate lags on the univariate
+input nodes one and two with four exogenous regressor lags across regressor nodes one and two.
 ```{r Vector Autoregressive Modeling with Trend, Time and Volume Interaction, echo=T, warning=F}
 df <- stock_data()
-# First Variable has the "time shift"
-ccf(df$volume,df$low, type="correlation") # nothing too significant to warrant lagging volume
-ccf(df$HiLo,df$low, type="correlation") # no strong cross-correlation
-ccf(df$OpClo,df$low, type="correlation") # Open-Close does not require lagging.
+```
 
+
+The model identifed is an AR(2) with an AIC score of -2.478.
+```{r Vector Autoregressive Modeling with Trend, Time and Volume Interaction1, echo=T, warning=F}
 df2 <- df[1:(nrow(df)-5),]
 t <- 1:100
 # Because of the white noise cross-correlation between all exogenous variables and the response variable, it's reasonable to expect only an AR(1) from VARselect. The model will quickly approximate the signal's mean without much sensitivity to change.
@@ -389,36 +612,48 @@ t <- 1:100
 
 # trend added manually:
 VARselect(df2$low, lag.max=6, season=NULL, exogen=data.frame(t[1:95], df2$volume, df2$HiLo, df2$OpClo, t[1:95]*df2$volume), type="const") # AIC:  p=1 with AIC -2.3081
+```
 
+# The ASE for this model is 0.130
+```{r Vector Autoregressive Modeling with Trend, Time and Volume Interaction2, echo=T, warning=F}
 # trend added manually:
 lsfit <- VAR(y=cbind(df2$low, t[1:95], df2$volume, df2$HiLo, df2$OpClo, t[1:95]*df2$volume), p=1, type="const") # with p=1, this will estimate the coefficients for lag 1
 preds <- predict(lsfit, n.ahead=5)
 
 ASE <- mean((df$low[(nrow(df)-4):nrow(df)] - preds$fcst$y1[,1])^2)
 ASE # 0.1296242
+```
 
+Plotting the forecast
+```{r Vector Autoregressive Modeling with Trend, Time and Volume Interaction3, echo=T, warning=F}
 plot(seq(1,100,1), df$low[1:100], type = "l",xlim = c(0,100), xlab = "Trading Days", ylab = "Share Prices", main = "Vector Autoregressive Modeling with Trend and Volume Interaction", lwd=2)
 lines(seq(96,100,1), preds$fcst$y1[,1], type = "l", col = "red", lwd=2)
 
 ```
 
 ## Vector Autoregressive Modeling with Trend, Time and Volume Interaction, Time and OpClo Interaction
-Finally, we modeled with an interaction between trend and volume and trend and the range between open and close prices (we also attempted for interaction between trend and the range between high and low prices, but this hurt the model, potentially indicating there is greater variation in between the high and low prices than the open and close prices). Nonetheless, the ASE resulting from the forecast was higher than the multiplicative model only including an interaction between trend and trade volume. Therefore, the latter model is the one we selected as the top VAR candidate. As with the other VAR models, this model applied an identified second-order autoregressive with an AIC score of -2.4645.
-```{r Vector Autoregressive Modeling with Trend, Time and Volume Interaction, Time and OpClo Interaction, echo=T, warning=F}
+Finally, we modeled with an interaction between trend and volume and trend and the range between open and close prices (we also
+attempted for interaction between trend and the range between high and low prices, but this hurt the model, potentially
+indicating there is greater variation in between the high and low prices than the open and close prices). Nonetheless, the ASE
+resulting from the forecast was higher than the multiplicative model only including an interaction between trend and trade
+volume. Therefore, the latter model is the one we selected as the top VAR candidate. As with the other VAR models, this model
+applied an identified second-order autoregressive with an AIC score of -2.4645.
+```{r Vector Autoregressive Modeling with Trend, Time and Volume Interaction, Time and OpClo Interaction, results='hide', echo=T, warning=F, message=F, include=F}
 df <- stock_data()
-plotts.sample.wge(df$volume, arlimits=T)
-# First Variable has the "time shift"
-ccf(df$volume,df$low, type="correlation") # nothing too significant to warrant lagging volume
-ccf(df$HiLo,df$low, type="correlation") # no strong cross-correlation
-ccf(df$OpClo,df$low, type="correlation") # Open-Close does not require lagging.
+```
 
+The model identifed is an AR(2) with an AIC score of -2.465.
+```{r Vector Autoregressive Modeling with Trend, Time and Volume Interaction, Time and OpClo Interaction1, echo=T, warning=F}
 df2 <- df[1:(nrow(df)-5),]
 t <- 1:100
 # Because of the white noise cross-correlation between all exogenous variables and the response variable, it's reasonable to expect only an AR(1) from VARselect. The model will quickly approximate the signal's mean without much sensitivity to change.
 
 # find a good count for p for the AR(p) component of the vector autoregressive model. No indication above for lag was required, but :
 VARselect(df2$low, lag.max=8, season=NULL, exogen=data.frame(t[1:95], df2$volume, df2$HiLo, df2$OpClo, t[1:95]*df2$volume, t[1:95]*df2$OpClo), type="const") # selects p=1 as the best value for AR(p)
+```
 
+# The ASE for this model is 0.170
+```{r Vector Autoregressive Modeling with Trend, Time and Volume Interaction, Time and OpClo Interaction2, echo=T, warning=F}
 # Build the model using the p identified for AR(p) and the training data. type="const" because trend is included
 lsfit <- VAR(y=cbind(df2$low, t[1:95], df2$volume, df2$HiLo, df2$OpClo, t[1:95]*df2$volume, t[1:95]*df2$OpClo), p=1, type="const") # with p=1, this will estimate the coefficients for lag 1
 
@@ -426,25 +661,33 @@ preds <- predict(lsfit, n.ahead=5)
 
 ASE <- mean((df$low[(nrow(df)-4):nrow(df)] - preds$fcst$y1[,1])^2)
 ASE # 0.1703138
+```
 
+Plotting the forecast
+```{r Vector Autoregressive Modeling with Trend, Time and Volume Interaction3, Time and OpClo Interaction, echo=T, warning=F}
 plot(seq(1,100,1), df$low[1:100], type = "l",xlim = c(0,100), xlab = "Trading Days", ylab = "Share Prices", main = "Vector Autoregressive Modeling with Trend", lwd=2)
 lines(seq(96,100,1), preds$fcst$y1[,1], type = "l", col = "red", lwd=2)
 ```
 
 # Neural Network Models: Multi-Layered Perceptrons
-A multi-layered perceptron operates using a "feedforward" artificial neural network to pass forward information from the input nodes into a hidden layer of nodes that perform logical activation functions before processing into the output node. In the case of this analysis, lags were detected and applied on input to both the predictor regressors as well as the univariate response.
+A multi-layered perceptron operates using a "feedforward" artificial neural network to pass forward information from the input
+nodes into a hidden layer of nodes that perform logical activation functions before processing into the output node. In the
+case of this analysis, lags were detected and applied on input to both the predictor regressors as well as the univariate
+response.
 
-When adding additional predictor variables to the multivariate models, the forecasts converge less toward the long-run mean and more toward the behavior of the realization itself. With this said, the addition of further predictor variables - such as those through natural language processing of market sentiment analysis - can aid in further stabilizing useful multivariate models.
+When adding additional predictor variables to the multivariate models, the forecasts converge less toward the long-run mean and
+more toward the behavior of the realization itself. Therefore, the addition of useful predictor variables - such as those from
+natural language processing for sentiment analysis - can aid in further stabilizing useful multivariate models.
 
 ## Neural Network without Trend
-The Neural Network without trend model we produced generated the highest Average Squared Error of all our MLP models. However, the ASE was still highly competitive with all other models we produced. The ASE for this model is 0.1758194.
-```{r Neural Network without Trend, echo=T, warning=F, eval=T}
+The Neural Network without trend model we produced generated the highest Average Squared Error of all our MLP models. However,
+the ASE was still highly competitive with all other models we produced. The ASE for this model is 0.1758194.
+```{r Neural Network without Trend, echo=T, warning=F, eval=T, results='hide', message=F, include=F}
 df <- stock_data()
-# First Variable has the "time shift"
-ccf(df$volume,df$low, type="correlation") # nothing too significant to warrant lagging volume
-ccf(df$HiLo,df$low, type="correlation") # no strong cross-correlation
-ccf(df$OpClo,df$low, type="correlation") # Open-Close does not require lagging.
+```
 
+MLP node configuration
+```{r Neural Network without Trend1, echo=T, warning=F, eval=T}
 dfTrain <- df[1:(nrow(df)-5),]
 lowTest <- df$low[(nrow(df)-4):nrow(df)] # forecast actuals
 lowTrain <- ts(dfTrain$low) # a training set of the target minus the test forecast
@@ -453,11 +696,23 @@ HiLoFull <- ts(df$HiLo) # the full dataset (train + test) of xreg
 OpCloFull <- ts(df$OpClo) # the full dataset (train + test) of xreg
 
 fit.mlp <- mlp(lowTrain, xreg=data.frame(volumeFull, HiLoFull, OpCloFull), reps = 15, comb = "mean", hd.auto.type="cv")
+```
+
+MLP map
+```{r Neural Network without Trend2, echo=T, warning=F, eval=T}
 fit.mlp
 plot(fit.mlp)
+```
 
+MLP Forecast
+```{r Neural Network without Trend3, echo=T, warning=F, eval=T}
 fore.mlp <- forecast(fit.mlp, h=5, xreg=data.frame(volumeFull, HiLoFull, OpCloFull))
 plot(fore.mlp)
+```
+
+MLP ASE
+```{r Neural Network without Trend4, echo=T, warning=F, eval=T, results='hide', message=F, include=F}
+
 ASE = mean((lowTest - fore.mlp$mean)^2)
 ASE # 0.1758194
 
@@ -465,13 +720,13 @@ ASE # 0.1758194
 
 ## Neural Network with Trend
 After adding trend into our Neural Network modeling, we successfully lowered the ASE to 0.06421939.
-```{r Neural Network with Trend, echo=T, warning=F, eval=T}
+```{r Neural Network with Trend, echo=T, warning=F, eval=T, results='hide', message=F, include=F}
 df <- stock_data()
+```
+
+MLP node configuration
+```{r Neural Network with Trend1, echo=T, warning=F, eval=T}
 t <- 1:nrow(df)
-# First Variable has the "time shift"
-ccf(df$volume,df$low, type="correlation") # nothing too significant to warrant lagging volume
-ccf(df$HiLo,df$low, type="correlation") # no strong cross-correlation
-ccf(df$OpClo,df$low, type="correlation") # Open-Close does not require lagging.
 
 dfTrain <- df[1:(nrow(df)-5),]
 lowTest <- df$low[(nrow(df)-4):nrow(df)] # forecast actuals
@@ -482,24 +737,36 @@ OpCloFull <- ts(df$OpClo) # the full dataset (train + test) of xreg
 
 fit.mlp <- mlp(lowTrain, xreg=data.frame(t, volumeFull, HiLoFull, OpCloFull), reps = 15, comb = "mean", hd.auto.type="cv")
 fit.mlp
-plot(fit.mlp)
+```
 
+MLP map
+```{r Neural Network with Trend2, echo=T, warning=F, eval=T}
+plot(fit.mlp)
+```
+
+MLP Forecast
+```{r Neural Network with Trend3, echo=T, warning=F, eval=T}
 fore.mlp <- forecast(fit.mlp, h=5, xreg=data.frame(t, volumeFull, HiLoFull, OpCloFull))
 plot(fore.mlp)
+```
+
+MLP ASE
+```{r Neural Network with Trend4, echo=T, warning=F, eval=T}
 ASE = mean((lowTest - fore.mlp$mean)^2)
 ASE # 0.06421939
 
 ```
 
 ## Neural Network with Trend, Time and Volume Interaction
-When we added a multiplicative term for trend and volume, our ASE lowered from 0.0642 to 0.0549. Although the Neural Nets that included a trend predictor were very close in terms of residual error, this model produced the lowest ASE. The final model 
-```{r Neural Network with Trend, Time and Volume Interaction, echo=T, warning=F, eval=T}
+When we added a multiplicative term for trend and volume, our ASE lowered from 0.0642 to 0.0549. Although the Neural Nets that
+included a trend predictor were very close in terms of residual error, this model produced the lowest ASE.
+```{r Neural Network with Trend, Time and Volume Interaction, echo=T, warning=F, eval=T, results='hide', message=F, include=F}
 df <- stock_data()
+```
+
+MLP node configuration
+```{r Neural Network with Trend, Time and Volume Interaction1, echo=T, warning=F, eval=T}
 t <- 1:nrow(df)
-# First Variable has the "time shift"
-ccf(df$volume,df$low, type="correlation") # nothing too significant to warrant lagging volume
-ccf(df$HiLo,df$low, type="correlation") # no strong cross-correlation
-ccf(df$OpClo,df$low, type="correlation") # Open-Close does not require lagging.
 
 dfTrain <- df[1:(nrow(df)-5),]
 lowTest <- df$low[(nrow(df)-4):nrow(df)] # forecast actuals
@@ -510,26 +777,40 @@ OpCloFull <- ts(df$OpClo) # the full dataset (train + test) of xreg
 
 fit.mlp <- mlp(lowTrain, xreg=data.frame(t, volumeFull, HiLoFull, OpCloFull, t*volumeFull), reps = 15, comb = "mean", hd.auto.type="cv")
 fit.mlp
-plot(fit.mlp)
+```
 
+
+MLP map
+```{r Neural Network with Trend, Time and Volume Interaction2, echo=T, warning=F, eval=T}
+plot(fit.mlp)
+```
+
+MLP Forecast
+```{r Neural Network with Trend, Time and Volume Interaction3, echo=T, warning=F, eval=T}
 fore.mlp <- forecast(fit.mlp, h=5, xreg=data.frame(t, volumeFull, HiLoFull, OpCloFull, t*volumeFull))
 plot(fore.mlp)
+```
+
+MLP ASE
+```{r Neural Network with Trend, Time and Volume Interaction4, echo=T, warning=F, eval=T}
 ASE = mean((lowTest - fore.mlp$mean)^2)
 ASE # 0.05486796
-
 ```
 
 
 ## Neural Network with Trend, Time and Volume Interaction, Time and OpClo Interaction
-It is important to note that we did not identify an interaction between time and the spread between high and low prices to benefit the model, but we did find that interaction between time and the spread between open and close prices to be beneficial for reducing ASE. However, the overall reduction from this model increased the ASE from 0.0549 in the model using an interaction between only trend and volume to an ASE of 0.0571.
-```{r Neural Network with Trend, Time and Volume Interaction, Time and OpClo Interaction, echo=T, warning=F, eval=T}
+It is important to note that we did not identify an interaction between time and the spread between high and low prices to
+benefit the model, but we did find that interaction between time and the spread between open and close prices to be beneficial
+for reducing ASE. However, the overall reduction from this model increased the ASE from 0.0549 in the model using an
+interaction between only trend and volume to an ASE of 0.0571.
+```{r Neural Network with Trend, Time and Volume Interaction, Time and OpClo Interaction, echo=T, warning=F, eval=T, results='hide', message=F, include=F}
 df <- stock_data()
-t <- 1:nrow(df)
+```
 
-# First Variable has the "time shift"
-ccf(df$volume,df$low, type="correlation") # nothing too significant to warrant lagging volume
-ccf(df$HiLo,df$low, type="correlation") # no strong cross-correlation
-ccf(df$OpClo,df$low, type="correlation") # Open-Close does not require lagging.
+
+MLP node configuration
+```{r Neural Network with Trend, Time and Volume Interaction1, Time and OpClo Interaction, echo=T, warning=F, eval=T}
+t <- 1:nrow(df)
 
 dfTrain <- df[1:(nrow(df)-5),]
 lowTest <- df$low[(nrow(df)-4):nrow(df)] # forecast actuals
@@ -541,20 +822,40 @@ OpCloFull <- ts(df$OpClo) # the full dataset (train + test) of xreg
 
 fit.mlp <- mlp(lowTrain, xreg=data.frame(t, volumeFull, High, OpCloFull, t*volumeFull, t*OpCloFull), reps = 15, comb = "mean", hd.auto.type="cv", difforder=NULL)
 fit.mlp
-plot(fit.mlp)
+```
 
+
+MLP map
+```{r Neural Network with Trend, Time and Volume Interaction2, Time and OpClo Interaction, echo=T, warning=F, eval=T}
+plot(fit.mlp)
+```
+
+MLP Forecast
+```{r Neural Network with Trend, Time and Volume Interaction3, Time and OpClo Interaction, echo=T, warning=F, eval=T}
 fore.mlp <- forecast(fit.mlp, h=5, xreg=data.frame(t, volumeFull, High, OpCloFull, t*volumeFull, t*OpCloFull))
 plot(fore.mlp)
+```
+
+MLP ASE
+```{r Neural Network with Trend, Time and Volume Interaction4, Time and OpClo Interaction, echo=T, warning=F, eval=T}
 ASE = mean((lowTest - fore.mlp$mean)^2)
 ASE # 0.05711815
 ```
 
-# Rolling ASEs
-To provide additional analysis for the best models of each category, we have provided below the Average Squared Error from a rolling 5-point forecast window.
+# Rolling ASEs and Ensemble Model Selection
+To provide additional analysis for the best models of each category, we have provided below the Average Squared Error from a
+rolling 5-point forecast window. This provides insight into how the model estimations can change over time, which is very
+important for preventing over-fitting and is considered heavily in this project. Please review the below procedures for
+output and assessment.
+
+When comparing all candidate models, the model with the lowest fixed ASE is the MLP while the model with the lowest 5-point windowed rolling ASE is the Signal Plus Noise. Therefore, we selected the ensemble between these as the best for forecasting. This ensemble provides the flexibility of using multiple predictors while also maintaining a lower risk of over-fitting provided by using the univariate signal plus noise.
 
 ### Rolling ASE for Neural Networks: Multi-Layered Perceptrons
-``` {r Rolling ASE NN-MLP, echo=T, warning=F, eval=T}
+``` {r Rolling ASE NN-MLP, echo=T, warning=F, eval=T, results='hide', message=F, include=F}
 df <- stock_data()
+```
+
+``` {r Rolling ASE NN-MLP1, echo=T, warning=F, eval=T}
 #MLP
 ts = df$low
 batch_size = 95
@@ -583,8 +884,11 @@ mean(NN_ASEs) # 0.1468514
 ```
 
 ### Rolling ASE for Vector Autoregressive
-```{r Rolling ASE VAR, echo=T, warning=F}
+```{r Rolling ASE VAR, echo=T, warning=F, results='hide', message=F, include=F}
 df <- stock_data()
+```
+
+```{r Rolling ASE VAR1, echo=T, warning=F}
 df2 <- df[1:(nrow(df)-5),]
 t = 1:100
 trainingSize = 91
@@ -610,9 +914,12 @@ rolling_ASE # 0.1869798
 ```
 
 ### Rolling ASE for Signal-Plus-Noise
-```{r Rolling ASE Sig+Noise, echo=T, warning=F}
+```{r Rolling ASE Sig+Noise, echo=T, warning=F, results='hide', message=F, include=F}
 #Signal + Noise
 df <- stock_data()
+```
+
+```{r Rolling ASE Sig+Noise1, echo=T, warning=F}
 df2 <- df[1:(nrow(df)-5),]
 ts = df$low
 t2 = 1:95
@@ -638,10 +945,13 @@ rolling_ASE_sigplus # 0.1333858
 ```
 
 ### Rolling ASE for ARIMA(5,1,0)
-```{r Rolling ASE for ARIMA(p,d,q), echo=T, warning=F}
+```{r Rolling ASE for ARIMA(p,d,q), echo=T, warning=F, results='hide', message=F, include=F}
 ### Rolling ASE for Neural Networks: Multi-Layered Perceptrons
 #ARIMA
 df <- stock_data()
+```
+
+```{r Rolling ASE for ARIMA(p,d,q)1, echo=T, warning=F}
 ts = df$low
 batch_size = 95
 start = 1
@@ -678,3 +988,80 @@ rolling_ASE_mean_ensemble = mean((sigplus_ASEs + NN_ASEs)/2)
 rolling_ASE_mean_ensemble
 
 ```
+
+
+# Appendix
+### Additional Plots, Forecasting, & Test Results
+Matching Signal-Plus-Noise Realization and Estimated Models' Gnerated Spectral Density and ACFs
+```{r echo=T, warning=F}
+#########################################################################################################
+############### Confirmation for repeated model visualization of ACF and Spectral Density ###############
+#########################################################################################################
+df <- stock_data()
+
+# take a sample of the data, analyze
+# plotts.sample.wge(df$low, arlimits=T)
+
+####################
+# Signal-Plus-Noise
+####################
+x = df$low
+n = length(x)
+t = 1:n
+fit = lm(x ~ t)
+
+x.z <- fit$residuals # derive residuals (from the regression line)
+ar.z <- aic.wge(x.z, p=0:6, type="aic")
+est_mod <- gen.sigplusnoise.wge(100, b0=34.855438, b1 = 0.072922, phi=ar.z$phi, vara=0.1177843)
+
+for( i in 1: 5)
+{
+   SpecDen2 <- parzen.wge(gen.sigplusnoise.wge(100, b0=34.855438, b1 = 0.072922, phi=ar.z$phi, vara=0.1177843), plot = T)
+   lines(SpecDen2$freq,SpecDen2$pzgram, lwd = 2, col = "red")
+}
+
+for( i in 1: 5)
+{
+   ACF2 <- acf(gen.sigplusnoise.wge(100, b0=34.855438, b1 = 0.072922, phi=ar.z$phi, vara=0.1177843), plot = T)
+   lines(ACF2$lag ,ACF2$acf, lwd = 2, col = "red")
+}
+#########################################################################################################
+#########################################################################################################
+#########################################################################################################
+
+signoise.forecast <- fore.sigplusnoise.wge(df$low, max.p=2, n.ahead=5, limits=T, lastn=T, plot=T)
+SIGNOISE_ASE = mean((df$low[(nrow(df)-5+1):nrow(df)] - signoise.forecast$f)^2)
+SIGNOISE_ASE # 0.133713
+
+
+```
+
+
+
+Matching ARUMA(p,d,q) Realization and Estimated Models' Gnerated Spectral Density and ACFs
+```{r ARIMA(p,d,q) Repeated compares, echo=T, warning=F, results='hide', message=F, include=F}
+#################################################################################################################################################
+############### Confirmation that repeated estimated model visualizations of ACF and Spectral Density match that of original data ###############
+#################################################################################################################################################
+df <- stock_data()
+estimated_arma <- est.arma.wge(dftrans, p=5, q=0)
+
+for(i in 1:2)
+{
+   SpecDen2 = parzen.wge(gen.aruma.wge(99, phi=estimated_arma$phi, theta=estimated_arma$theta, d=1, vara=estimated_arma$avar), plot = T)
+   lines(SpecDen2$freq,SpecDen2$pzgram, lwd = 2, col = "red")
+}
+
+for(i in 1:2)
+{
+   ACF2 = acf(gen.aruma.wge(99, phi=estimated_arma$phi, theta=estimated_arma$theta, d=1, vara=estimated_arma$avar), plot = T)
+   lines(ACF2$lag ,ACF2$acf, lwd = 2, col = "red")
+}
+
+#########################################################################################################
+#########################################################################################################
+#########################################################################################################
+
+# after comparing sample spectral density and ACF plots, we comapred the AIC-estimated models to compare identified models
+aic5.wge(dftrans)
+aic5.wge(est_mod2) # ARMA(5,0) and ARMA(5,1) are top in both models, indicating a potentially useful model..
