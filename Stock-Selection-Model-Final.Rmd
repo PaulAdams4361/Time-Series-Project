@@ -13,6 +13,7 @@ p_load(tswge, dplyr, kableExtra, sqldf, ggplot2, orcutt, tswgewrapped, readr, va
 set.seed(39)
 ```
 
+Important Links:
 [Project GitHub Repository](https://github.com/PaulAdams4361/Time-Series-Project)
 [Paul Adams Presentation](https://www.youtube.com/watch?v=K7hQufu2mWM)
 [Jeff Nguyen Presentation](https://youtu.be/rNtp4fHCWhw)
@@ -397,8 +398,10 @@ estimated_arma
 
 ### ARIMA(p,d,q) in Backshift Notation, Unfactored & Factored:
 $(1-B)(1-0.12269667B+0.11827203B^2+0.14543411B^3+0.25874556B^4-0.02916165B^5)(X_t + 38.53802) = a_t$, where $\hat{\sigma}_{a}^2 = 0.1240151$
-$=$
-$(1-1.12269667B+0.00442464B^2+0.26370614B^3+0.11331145B^4-0.28790721B^5+0.02916165B^6)(X_t + 38.53802) = a_t$ where $ \hat{\sigma}_a^2 = 0.1240151$
+
+In factored form:
+$(1-1.12269667B+0.00442464B^2+0.26370614B^3+0.11331145B^4-0.28790721B^5+0.02916165B^6)(X_t + 38.53802) = a_t$ where 
+$\hat{\sigma}_a^2 = 0.1240151$
 
 ### Quantifying Residuals of ARIMA(5,1,0)
 The Ljung-Box test indicates the residuals are very similar to white noise, indicating there is potentially a good fit by the ARIMA(p,d,q)
@@ -544,7 +547,7 @@ VARselect(df2$low, lag.max=6, season=NULL, exogen=data.frame(df2$volume, df2$HiL
 
 ```
 
-# The ASE for this model is 0.2283
+The ASE for this model is 0.2283
 ```{r Vector Autoregressive Modeling without Trend1, echo=T, warning=F}
 lsfit <- VAR(y=cbind(df2$low, df2$volume, df2$HiLo, df2$OpClo), p=2, type="const") # with p=5, this will estimate the coefficients for lag 5
 
@@ -575,7 +578,7 @@ t <- 1:100
 VARselect(df2$low, lag.max=6, season=NULL, exogen=data.frame(t[1:95], df2$volume, df2$HiLo, df2$OpClo), type="const") # AIC:  p=1 with AIC -2.3158
 ```
 
-# The ASE for this model is 0.1132
+The ASE for this model is 0.1132
 ```{r Vector Autoregressive Modeling without Trend5, echo=T, warning=F}
 lsfit <- VAR(y=cbind(df2$low, t[1:95], df2$volume, df2$HiLo, df2$OpClo), p=1, type="const") # with p=1, this will estimate the coefficients for lag 1
 preds <- predict(lsfit, n.ahead=5)
@@ -614,7 +617,7 @@ t <- 1:100
 VARselect(df2$low, lag.max=6, season=NULL, exogen=data.frame(t[1:95], df2$volume, df2$HiLo, df2$OpClo, t[1:95]*df2$volume), type="const") # AIC:  p=1 with AIC -2.3081
 ```
 
-# The ASE for this model is 0.130
+The ASE for this model is 0.130
 ```{r Vector Autoregressive Modeling with Trend, Time and Volume Interaction2, echo=T, warning=F}
 # trend added manually:
 lsfit <- VAR(y=cbind(df2$low, t[1:95], df2$volume, df2$HiLo, df2$OpClo, t[1:95]*df2$volume), p=1, type="const") # with p=1, this will estimate the coefficients for lag 1
@@ -652,7 +655,7 @@ t <- 1:100
 VARselect(df2$low, lag.max=8, season=NULL, exogen=data.frame(t[1:95], df2$volume, df2$HiLo, df2$OpClo, t[1:95]*df2$volume, t[1:95]*df2$OpClo), type="const") # selects p=1 as the best value for AR(p)
 ```
 
-# The ASE for this model is 0.170
+The ASE for this model is 0.170
 ```{r Vector Autoregressive Modeling with Trend, Time and Volume Interaction, Time and OpClo Interaction2, echo=T, warning=F}
 # Build the model using the p identified for AR(p) and the training data. type="const" because trend is included
 lsfit <- VAR(y=cbind(df2$low, t[1:95], df2$volume, df2$HiLo, df2$OpClo, t[1:95]*df2$volume, t[1:95]*df2$OpClo), p=1, type="const") # with p=1, this will estimate the coefficients for lag 1
